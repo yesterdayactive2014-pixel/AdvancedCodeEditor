@@ -74,7 +74,7 @@ else:
 ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
 
 VERSION = "1.0.0"
-GITHUB_REPO = "anzerscript/alan-code-editor"  # замени на свой репозиторий
+GITHUB_REPO = "yesterdayactive2014-pixel/AdvancedCodeEditor"  # замени на свой репозиторий
 VERSION_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/version.json"
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.avif', '.ico', '.bmp'}
