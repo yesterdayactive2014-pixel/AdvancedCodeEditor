@@ -413,30 +413,39 @@ class LlamaWorker(QThread):
     error = pyqtSignal(str)
 
     SYSTEM_PROMPT = (
-        "Ты — Алан (Alan), официальный ИИ-ассистент, "
+        "Ты — Алан (Alan), русскоязычный ИИ-ассистент, "
         "встроенный в Advanced Code Editor. Ты помогаешь пользователю "
-        "писать код на его личном уникальном языке OrionScript "
-        "(пишется именно OrionScript, а не Onion!). "
-        "Отвечай всегда на чистом, красивом русском языке, "
-        "будь вежлив и краток.\n\n"
-        "ВАЖНО: Если пользователь не здоровается (не пишет «привет», «здравствуй» и т.п.), "
-        "НЕ приветствуй его в ответ. Сразу переходи к делу — отвечай на вопрос или выполняй задачу.\n\n"
-        "Ты можешь выполнять действия в редакторе. Для этого используй блоки:\n"
-        '<action type="create_file" path="путь/к/файлу">\nсодержимое файла\n</action>\n'
-        '<action type="open_file" path="путь/к/файлу" />\n'
-        '<action type="run_code" />\n'
-        '<action type="save" />\n'
-        "Пользователь увидит результат действия. Не объясняй что делаешь — просто выполняй."
+        "писать код.\n"
+        "ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ ЯЗЫКЕ. Никакого английского, китайского, японского — "
+        "только чистый русский язык.\n"
+        "Если пользователь не здоровается — не приветствуй, сразу к делу.\n\n"
+        "Ты можешь выполнять действия в редакторе. ВАЖНО: всегда используй эти блоки, "
+        "а не просто говори что сделаешь. Пример правильного ответа:\n"
+        'Пользователь: создай файл hello.py с принтом\n'
+        'Алан: <action type="create_file" path="hello.py">print("Hello!")</action>\n'
+        '✅ Создан hello.py\n\n'
+        'Пользователь: запусти код\n'
+        'Алан: <action type="run_code" />\n'
+        '✅ Запускаю\n\n'
+        "Доступные действия:\n"
+        '- create_file: создаёт файл с содержимым\n'
+        '- open_file: открывает файл\n'
+        '- run_code: запускает текущий файл\n'
+        '- save: сохраняет текущий файл\n'
+        "Не объясняй что делаешь — просто выполняй действие."
     )
 
-    def __init__(self, prompt, history=None, host='127.0.0.1', port=11434, parent=None):
+    def __init__(self, prompt, context="", history=None, host='127.0.0.1', port=11434, parent=None):
         super().__init__(parent)
         self.prompt = prompt
         self.url = f'http://{host}:{port}/api/generate'
+        self.context = context
         self.history = history or []
 
     def _build_full_prompt(self):
         parts = [f"System: {self.SYSTEM_PROMPT}"]
+        if self.context:
+            parts.append(f"Context (текущее состояние редактора):\n{self.context}")
         for role, msg in self.history:
             label = "User" if role == "user" else "Alan"
             parts.append(f"{label}: {msg}")
@@ -723,12 +732,33 @@ class AlanPanel(QWidget):
         self.input.setEnabled(False)
         self._last_query = raw
         last = self.history[-6:] if len(self.history) > 6 else self.history[:]
-        self.worker = LlamaWorker(raw, history=last)
+        ctx = self._build_context()
+        self.worker = LlamaWorker(raw, context=ctx, history=last)
         self.worker.finished.connect(self._on_result)
         self.worker.finished.connect(self.worker.deleteLater)
         self.worker.error.connect(self._on_error)
         self.worker.error.connect(self.worker.deleteLater)
         self.worker.start()
+
+    def _build_context(self):
+        if not self.main_app:
+            return ""
+        lang = ""
+        fname = ""
+        try:
+            lang = self.main_app.language_combo.currentText()
+            ed = self.main_app.current_editor()
+            if ed:
+                text = ed.toPlainText()
+                fname = os.path.basename(self.main_app.current_file or "untitled")
+        except Exception:
+            pass
+        parts = []
+        if fname:
+            parts.append(f"Открыт файл: {fname}")
+        if lang:
+            parts.append(f"Язык: {lang}")
+        return " | ".join(parts)
 
     def _execute_actions(self, text):
         import re
