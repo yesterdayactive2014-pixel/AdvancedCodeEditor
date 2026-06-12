@@ -1,0 +1,2213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Scratch → JS IDE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#1e1e1e;color:#d4d4d4;font-family:'Consolas','Cascadia Code','Fira Code',monospace;font-size:13px;overflow:hidden}
+.flex{display:flex}.col{flex-direction:column}.grow{flex:1}
+#root{height:100vh}
+#left{flex:0 0 60%;min-width:300px}
+#right{flex:0 0 40%;min-width:250px;border-left:1px solid #333}
+#toolbar{background:#252526;border-bottom:1px solid #3e3e42;padding:6px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+#toolbar button{background:#0e639c;color:#fff;border:none;padding:5px 14px;border-radius:3px;cursor:pointer;font-family:inherit;font-size:12px}
+#toolbar button:hover{background:#1177bb}
+#toolbar button.danger{background:#c53030}
+#toolbar button.danger:hover{background:#e53e3e}
+#toolbar button.connected{background:#2ea043}
+#toolbar button.connected:hover{background:#3fb950}
+#toolbar .spacer{flex:1}
+#toolbar label{color:#858585;font-size:11px}
+#editor-wrap{position:relative;flex:1}
+#editor{width:100%;height:100%;background:#1e1e1e;color:#d4d4d4;border:none;outline:none;resize:none;padding:12px 16px;font-family:inherit;font-size:13px;line-height:1.5;tab-size:2;-moz-tab-size:2}
+#editor::placeholder{color:#555}
+#canvas-wrap{background:#1e1e1e;flex:1;display:flex;align-items:center;justify-content:center;padding:10px}
+#canvas{border:1px solid #333;border-radius:4px;background:#fff;width:100%;max-width:480px;aspect-ratio:1}
+#info{background:#252526;border-top:1px solid #3e3e42;padding:4px 12px;display:flex;gap:16px;flex-shrink:0;font-size:11px;color:#858585;flex-wrap:wrap}
+#info span{white-space:nowrap}
+#info .val{color:#4FC3F7}
+#info .val-pen{color:#FFB86C}
+#info .val-hw{color:#50FA7B}
+#console-wrap{background:#1e1e1e;border-top:1px solid #3e3e42;flex:0 0 100px;display:flex;flex-direction:column}
+#console-head{background:#252526;padding:3px 12px;font-size:11px;color:#858585;border-bottom:1px solid #3e3e42;flex-shrink:0;display:flex;gap:16px}
+#console-head .tab{cursor:pointer;padding:1px 4px}
+#console-head .tab.active{color:#d4d4d4;border-bottom:2px solid #0e639c}
+#console{flex:1;overflow-y:auto;padding:4px 12px;font-size:12px;line-height:1.5;color:#d4d4d4}
+#console .msg-say{color:#F1FA8C}
+#console .msg-think{color:#6272A4;font-style:italic}
+#console .msg-info{color:#858585}
+#console .msg-hardware{color:#4FC3F7}
+#console .msg-rx{color:#50FA7B}
+#console .msg-tx{color:#FFB86C}
+#console .msg-error{color:#FF5555}
+#console .msg-warn{color:#FFA726}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<div id="root" class="flex">
+  <div id="left" class="flex col">
+    <div id="toolbar">
+      <button id="btn-run">▶ Запустить</button>
+      <button id="btn-stop" style="background:#555">■ Стоп</button>
+      <button id="btn-pen-clear" class="danger">🗑 Очистить перо</button>
+      <button id="btn-connect">🔌 Подключить плату</button>
+      <button id="btn-open-sb3">📁 Открыть .sb3</button>
+      <input type="file" id="sb3-input" accept=".sb3" style="display:none">
+      <button id="btn-cpp">⚙ C++ .ino</button>
+      <div style="width:1px;height:20px;background:#3e3e42;margin:0 4px"></div>
+      <button id="btn-mode-scratch" style="background:#0e639c" data-mode="scratch">🎮 Scratch</button>
+      <button id="btn-mode-algo" style="background:#555" data-mode="algo">📊 Алгоритмы</button>
+      <button id="btn-mode-sql" style="background:#555" data-mode="sql">🗄 SQL</button>
+      <div class="spacer"></div>
+      <label id="status-label">Готов</label>
+    </div>
+    <div id="editor-wrap">
+      <textarea id="editor" placeholder='// Сгенерированный код...'></textarea>
+    </div>
+  </div>
+
+  <div id="right" class="flex col">
+    <div id="canvas-wrap">
+      <canvas id="canvas" width="480" height="480"></canvas>
+    </div>
+    <div id="viz-controls" style="display:none; background:#252526; border-top:1px solid #3e3e42; padding:6px 12px; flex-shrink:0; font-size:12px; align-items:center; gap:8px">
+      <button id="viz-play" style="background:#0e639c;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer">▶</button>
+      <button id="viz-pause" style="background:#555;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer">⏸</button>
+      <button id="viz-stop" style="background:#c53030;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer">⏹</button>
+      <button id="viz-prev" style="background:#555;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer">◀</button>
+      <button id="viz-next" style="background:#0e639c;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer">▶</button>
+      <label style="color:#858585">Шаг: <span id="viz-step">0/0</span></label>
+      <label style="color:#858585;margin-left:8px">Скорость:</label>
+      <input type="range" id="viz-speed" min="1" max="10" value="5" style="width:80px;vertical-align:middle">
+      <span id="viz-mode-label" style="color:#4FC3F7;margin-left:8px"></span>
+    </div>
+    <div id="info">
+      <span>X: <span class="val" id="info-x">0</span></span>
+      <span>Y: <span class="val" id="info-y">0</span></span>
+      <span>Угол: <span class="val" id="info-angle">0</span>°</span>
+      <span>Видимость: <span class="val" id="info-vis">да</span></span>
+      <span>Перо: <span class="val-pen" id="info-pen">⬆ вверх</span></span>
+      <span>Плата: <span class="val-hw" id="info-hw">откл</span></span>
+      <span>Потоки: <span class="val" id="info-threads">0</span></span>
+    </div>
+    <div id="console-wrap">
+      <div id="console-head">
+        <span class="tab active" data-tab="log">Лог</span>
+        <span class="tab" data-tab="hardware">HW Status</span>
+      </div>
+      <div id="console"></div>
+    </div>
+  </div>
+</div>
+
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+// roundRect polyfill for older browsers
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+    const r = Array.isArray(radii) ? radii : [radii, radii, radii, radii];
+    const [tl, tr, br, bl] = r.map(v => Math.min(v || 0, Math.min(w, h) / 2));
+    this.moveTo(x + tl, y);
+    this.lineTo(x + w - tr, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + tr);
+    this.lineTo(x + w, y + h - br);
+    this.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+    this.lineTo(x + bl, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - bl);
+    this.lineTo(x, y + tl);
+    this.quadraticCurveTo(x, y, x + tl, y);
+    this.closePath();
+    return this;
+  };
+}
+// ============================================================
+// SCHEDULER — параллельное выполнение событий Scratch
+// ============================================================
+class Scheduler {
+  constructor(runtime) {
+    this.runtime = runtime;
+    this.abortController = null;
+    this._handlers = { flags: [], broadcasts: {} };
+    this._tasks = [];
+    this._stopped = false;
+  }
+
+  reset() {
+    this.stop();
+    this._handlers = { flags: [], broadcasts: {} };
+    this._tasks = [];
+    this._stopped = false;
+  }
+
+  register(handlers) {
+    if (!handlers) return;
+    this._handlers.flags = handlers.flags || [];
+    this._handlers.broadcasts = handlers.broadcasts || {};
+  }
+
+  async start() {
+    if (this._handlers.flags.length === 0) return;
+    this.abortController = new AbortController();
+    this._stopped = false;
+    const signal = this.abortController.signal;
+
+    const tasks = this._handlers.flags.map(fn => this._execSafe(fn, signal));
+    await Promise.all(tasks);
+  }
+
+  async _execSafe(fn, signal) {
+    if (this._stopped) return;
+    this._tasks.push(fn);
+    this._notify();
+    try {
+      await fn();
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        this.runtime._log('error', `[поток] ${e.message}`);
+      }
+    }
+    const idx = this._tasks.indexOf(fn);
+    if (idx >= 0) this._tasks.splice(idx, 1);
+    this._notify();
+  }
+
+  async broadcast(msg) {
+    const handlers = this._handlers.broadcasts[msg];
+    if (!handlers || handlers.length === 0) return;
+    const signal = this.abortController ? this.abortController.signal : null;
+    for (const fn of handlers) {
+      this._execSafe(fn, signal);
+    }
+  }
+
+  async broadcastAndWait(msg) {
+    const handlers = this._handlers.broadcasts[msg];
+    if (!handlers || handlers.length === 0) return;
+    const signal = this.abortController ? this.abortController.signal : null;
+    const tasks = handlers.map(fn => this._execSafe(fn, signal));
+    await Promise.all(tasks);
+  }
+
+  stop() {
+    this._stopped = true;
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    this._tasks = [];
+    this._notify();
+  }
+
+  _notify() {
+    if (this.runtime._onUpdate) {
+      this.runtime._onUpdate({ tasks: this._tasks.length });
+    }
+  }
+}
+
+// ============================================================
+// SCRATCH RUNTIME (Extended: Web Serial + Pen + Electronics)
+// ============================================================
+class ScratchRuntime {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.x = 0; this.y = 0; this.direction = 0;
+    this.visible = true; this.running = false;
+
+    // pen
+    this.penIsDown = false;
+    this.penColor = '#000000';
+    this.penSize = 2;
+    this.penLines = [];
+
+    // hardware / serial
+    this.hardwareConnected = false;
+    this.serialPort = null;
+    this.serialReader = null;
+    this.serialWriter = null;
+    this._serialBuffer = '';
+    this._serialReadQueue = [];
+
+    // electronics state (sim fallback)
+    this._pinModes = {};
+    this._pinValues = {};
+
+    // scheduler
+    this.scheduler = new Scheduler(this);
+
+    this._onUpdate = null;
+    this._onLog = null;
+  }
+
+  /* ── helpers ─────────────────────────── */
+  _sx(x) { return this.canvas.width / 2 + x; }
+  _sy(y) { return this.canvas.height / 2 - y; }
+  _notify() {
+    if (this._onUpdate) this._onUpdate({
+      x:this.x, y:this.y, direction:this.direction,
+      visible:this.visible, penDown:this.penIsDown,
+      hw:this.hardwareConnected,
+      tasks:this.scheduler._tasks.length
+    });
+  }
+
+  /* ── async ───────────────────────────── */
+  wait(secs) { return new Promise(r => setTimeout(r, secs * 1000)); }
+
+  /* ── Web Serial API ──────────────────── */
+  async connectHardware() {
+    if (this.hardwareConnected) return;
+    if (!navigator.serial) {
+      this._log('warn', 'Web Serial API не поддерживается этим браузером. Используйте Chrome/Edge.');
+      return;
+    }
+    try {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      this.serialPort = port;
+      this.serialWriter = port.writable.getWriter();
+      this.serialReader = port.readable.getReader();
+      this.hardwareConnected = true;
+      this._log('hardware', `Плата подключена: ${port.getInfo().usbProductId || '—'}`);
+      this._startSerialReadLoop();
+      this._notify();
+    } catch (e) {
+      if (e.name !== 'NotFoundError') {
+        this._log('error', `Ошибка подключения: ${e.message}`);
+      }
+    }
+  }
+
+  async disconnectHardware() {
+    if (!this.hardwareConnected) return;
+    try {
+      if (this.serialReader) { await this.serialReader.cancel(); this.serialReader = null; }
+      if (this.serialWriter) { await this.serialWriter.close(); this.serialWriter = null; }
+      if (this.serialPort) { await this.serialPort.close(); this.serialPort = null; }
+    } catch (e) { /* ignore close errors */ }
+    this.hardwareConnected = false;
+    this._serialBuffer = '';
+    this._serialReadQueue = [];
+    this._log('hardware', 'Плата отключена');
+    this._notify();
+  }
+
+  async _startSerialReadLoop() {
+    if (!this.serialReader) return;
+    try {
+      const decoder = new TextDecoder();
+      while (true) {
+        const { value, done } = await this.serialReader.read();
+        if (done) break;
+        const text = decoder.decode(value);
+        this._serialBuffer += text;
+        // process complete lines
+        let nl;
+        while ((nl = this._serialBuffer.indexOf('\n')) >= 0) {
+          const line = this._serialBuffer.slice(0, nl).trim();
+          this._serialBuffer = this._serialBuffer.slice(nl + 1);
+          this._log('rx', `→ ${line}`);
+          // resolve pending read promises
+          const resolver = this._serialReadQueue.shift();
+          if (resolver) resolver(line);
+        }
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError' && e.name !== 'CancelError') {
+        this._log('error', `Ошибка чтения: ${e.message}`);
+      }
+    }
+    this.hardwareConnected = false;
+    this._notify();
+  }
+
+  async _serialWriteLine(str) {
+    if (!this.hardwareConnected || !this.serialWriter) return;
+    const data = str + '\n';
+    this._log('tx', `← ${str}`);
+    await this.serialWriter.write(new TextEncoder().encode(data));
+  }
+
+  async _serialReadLine(timeoutMs = 2000) {
+    return new Promise((resolve) => {
+      this._serialReadQueue.push(resolve);
+      setTimeout(() => {
+        const idx = this._serialReadQueue.indexOf(resolve);
+        if (idx >= 0) {
+          this._serialReadQueue.splice(idx, 1);
+          resolve(null);
+        }
+      }, timeoutMs);
+    });
+  }
+
+  /* ── hardware digital/analog (real + sim) ── */
+  async setPinMode(pin, mode) {
+    const m = String(mode).toUpperCase();
+    this._pinModes[pin] = m;
+    if (this.hardwareConnected) {
+      await this._serialWriteLine(`M ${pin} ${m === 'OUTPUT' ? 1 : 0}`);
+    } else {
+      this._log('hardware', `[sim] pinMode(${pin}, ${m})`);
+    }
+  }
+
+  async digitalWrite(pin, value) {
+    const v = Number(value) ? 1 : 0;
+    this._pinValues[pin] = v;
+    if (this.hardwareConnected) {
+      await this._serialWriteLine(`W ${pin} ${v}`);
+    } else {
+      this._log('hardware', `[sim] digitalWrite(${pin}, ${v ? 'HIGH' : 'LOW'})`);
+    }
+  }
+
+  async analogWrite(pin, value) {
+    this._pinValues[pin] = value;
+    if (this.hardwareConnected) {
+      await this._serialWriteLine(`A ${pin} ${value}`);
+    } else {
+      this._log('hardware', `[sim] analogWrite(${pin}, ${value})`);
+    }
+  }
+
+  async digitalRead(pin) {
+    if (this.hardwareConnected) {
+      await this._serialWriteLine(`R ${pin}`);
+      const resp = await this._serialReadLine();
+      if (resp !== null) {
+        const val = parseInt(resp, 10);
+        this._log('hardware', `digitalRead(${pin}) → ${val}`);
+        return isNaN(val) ? 0 : val;
+      }
+      this._log('warn', 'Таймаут digitalRead, использую симуляцию');
+    }
+    const val = Math.random() > 0.5 ? 1 : 0;
+    this._log('hardware', `[sim] digitalRead(${pin}) → ${val}`);
+    return val;
+  }
+
+  async analogRead(pin) {
+    if (this.hardwareConnected) {
+      await this._serialWriteLine(`RA ${pin}`);
+      const resp = await this._serialReadLine();
+      if (resp !== null) {
+        const val = parseInt(resp, 10);
+        this._log('hardware', `analogRead(${pin}) → ${val}`);
+        return isNaN(val) ? 0 : val;
+      }
+      this._log('warn', 'Таймаут analogRead, использую симуляцию');
+    }
+    const val = Math.floor(Math.random() * 1024);
+    this._log('hardware', `[sim] analogRead(${pin}) → ${val}`);
+    return val;
+  }
+
+  async getDistance(trig, echo) {
+    if (this.hardwareConnected) {
+      await this._serialWriteLine(`D ${trig} ${echo}`);
+      const resp = await this._serialReadLine();
+      if (resp !== null) {
+        const val = parseInt(resp, 10);
+        this._log('hardware', `distance → ${val}cm`);
+        return isNaN(val) ? 0 : val;
+      }
+      this._log('warn', 'Таймаут distance, использую симуляцию');
+    }
+    const val = Math.floor(Math.random() * 200) + 10;
+    this._log('hardware', `[sim] distance → ${val}cm`);
+    return val;
+  }
+
+  async getLightValue(pin) {
+    if (this.hardwareConnected) {
+      await this._serialWriteLine(`L ${pin}`);
+      const resp = await this._serialReadLine();
+      if (resp !== null) {
+        const val = parseInt(resp, 10);
+        this._log('hardware', `light(${pin}) → ${val}`);
+        return isNaN(val) ? 0 : val;
+      }
+      this._log('warn', 'Таймаут light, использую симуляцию');
+    }
+    const val = Math.floor(Math.random() * 1024);
+    this._log('hardware', `[sim] light(${pin}) → ${val}`);
+    return val;
+  }
+
+  /* ── tone / sound ────────────────────── */
+  async tone(pin, freq, duration) {
+    this._log('hardware', `tone(${pin}, ${freq}, ${duration})`);
+    if (this.hardwareConnected) {
+      if (duration) {
+        await this._serialWriteLine(`T ${pin} ${freq} ${duration}`);
+      } else {
+        await this._serialWriteLine(`T ${pin} ${freq}`);
+      }
+    }
+  }
+  async noTone(pin) {
+    this._log('hardware', `noTone(${pin})`);
+    if (this.hardwareConnected) await this._serialWriteLine(`N ${pin}`);
+  }
+  async servoWrite(pin, angle) {
+    this._log('hardware', `servoWrite(${pin}, ${angle})`);
+    if (this.hardwareConnected) {
+      await this._serialWriteLine(`S ${pin} ${angle}`);
+    } else {
+      this._log('hardware', `[sim] servoWrite(${pin}, ${angle})`);
+    }
+  }
+
+  /* ── display ──────────────────────────── */
+  async displayPrint(msg) {
+    const el = document.getElementById('dspl-output');
+    if (!el) return;
+    el.textContent += String(msg);
+  }
+  async displayClear() {
+    const el = document.getElementById('dspl-output');
+    if (!el) return;
+    el.textContent = '';
+  }
+
+  /* ── database query (SQL snapshot) ───── */
+  async dbQuery(sql) {
+    this._log('info', `dbQuery: ${sql}`);
+    if (window.receiveSnapshots) {
+      window.receiveSnapshots(JSON.stringify([{type:'sql', sql: sql, step:0, columns:['result'], rows:[['query sent']], activeRow:-1, filterStatus:'done', resultRows:[['query sent']]}]), 'sql');
+    }
+  }
+
+  /* ── motion (pen-aware) ──────────────── */
+  move(steps) {
+    const ox = this.x, oy = this.y;
+    const rad = this.direction * Math.PI / 180;
+    this.x += steps * Math.sin(rad);
+    this.y += steps * Math.cos(rad);
+    if (this.penIsDown) {
+      this.penLines.push({x1:ox, y1:oy, x2:this.x, y2:this.y, color:this.penColor, size:this.penSize});
+    }
+    this.render(); this._notify();
+  }
+  turn(deg) { this.direction = ((this.direction + deg) % 360 + 360) % 360; this.render(); this._notify(); }
+  home() { this.x = 0; this.y = 0; this.direction = 0; this.render(); this._notify(); }
+  clearCanvas() { this.penLines = []; this.render(); this._notify(); }
+  setDirection(deg) { this.direction = ((Number(deg) % 360) + 360) % 360; this.render(); this._notify(); }
+  stamp() {
+    const {ctx, canvas} = this;
+    ctx.save();
+    ctx.translate(this._sx(this.x), this._sy(this.y));
+    ctx.rotate(-this.direction * Math.PI / 180);
+    ctx.fillStyle = this.penColor;
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(3, this.penSize * 2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  async glide(x, y, secs) {
+    const startX = this.x, startY = this.y;
+    const steps = Math.max(1, Math.round((secs || 1) * 30));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      this.x = startX + (x - startX) * t;
+      this.y = startY + (y - startY) * t;
+      this.render(); this._notify();
+      await this.wait(1 / 30);
+    }
+  }
+  goto(x, y) {
+    if (this.penIsDown) {
+      this.penLines.push({x1:this.x, y1:this.y, x2:x, y2:y, color:this.penColor, size:this.penSize});
+    }
+    this.x = x; this.y = y; this.render(); this._notify();
+  }
+  setX(x) { this.x = x; this.render(); this._notify(); }
+  setY(y) { this.y = y; this.render(); this._notify(); }
+  changeX(dx) { this.x += dx; this.render(); this._notify(); }
+  changeY(dy) { this.y += dy; this.render(); this._notify(); }
+  pointInDirection(dir) { this.direction = ((dir % 360) + 360) % 360; this.render(); this._notify(); }
+
+  /* ── looks ───────────────────────────── */
+  show() { this.visible = true; this.render(); this._notify(); }
+  hide() { this.visible = false; this.render(); this._notify(); }
+  say(msg) { this._log('say', String(msg)); }
+  think(msg) { this._log('think', String(msg)); }
+  async sayForSecs(msg, secs) { this.say(msg); await this.wait(secs); }
+  async thinkForSecs(msg, secs) { this.think(msg); await this.wait(secs); }
+  switchCostume(name) { this._log('info', `costume: ${name}`); }
+  nextCostume() { this._log('info', 'next costume'); }
+
+  /* ── pen ─────────────────────────────── */
+  penDown() { this.penIsDown = true; this._notify(); }
+  penUp() { this.penIsDown = false; this._notify(); }
+  async penClear() { this.penLines = []; this.render(); this._notify(); }
+  setPenColor(color) { this.penColor = String(color); }
+  setPenSize(size) { this.penSize = Math.max(1, Number(size)); }
+
+  /* ── sensing ─────────────────────────── */
+  get answer() { return ''; }
+
+  /* ── broadcast ───────────────────────── */
+  async broadcast(msg) {
+    this._log('info', `broadcast: ${msg}`);
+    await this.scheduler.broadcast(msg);
+  }
+  async broadcastAndWait(msg) {
+    this._log('info', `broadcastAndWait: ${msg}`);
+    await this.scheduler.broadcastAndWait(msg);
+  }
+
+  _log(level, msg) {
+    if (this._onLog) this._onLog(level, msg);
+  }
+
+  /* ── render ──────────────────────────── */
+  render() {
+    const {ctx, canvas} = this;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const l of this.penLines) {
+      ctx.beginPath();
+      ctx.moveTo(this._sx(l.x1), this._sy(l.y1));
+      ctx.lineTo(this._sx(l.x2), this._sy(l.y2));
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth = l.size;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#e8e8e8';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x <= canvas.width; x += 20) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = 0; y <= canvas.height; y += 20) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(canvas.width/2-10, canvas.height/2); ctx.lineTo(canvas.width/2+10, canvas.height/2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(canvas.width/2, canvas.height/2-10); ctx.lineTo(canvas.width/2, canvas.height/2+10); ctx.stroke();
+
+    if (!this.visible) return;
+
+    const cx = this._sx(this.x), cy = this._sy(this.y);
+    const rad = this.direction * Math.PI / 180;
+    const size = 16;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-rad);
+    ctx.fillStyle = '#4FC3F7';
+    ctx.strokeStyle = '#0288D1';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -size);
+    ctx.lineTo(-size * 0.6, size * 0.5);
+    ctx.lineTo(size * 0.6, size * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ============================================================
+// VISUALIZER — Step player for algorithm/SQL visualization
+// ============================================================
+
+/* ── Snapshot JSON format ────────────────────────────────────
+ *
+ * Array (sorting):
+ *   { type: "array", step: N, array: [12,45,2,8],
+ *     active: [2,3], sorted: [0,1], operation: "compare" }
+ *   operation: "compare"(yellow), "swap"(red), "sorted"(green), "done"
+ *
+ * SQL SELECT:
+ *   { type: "sql", step: N, columns: ["id","name","age"],
+ *     rows: [[1,"Alice",25],[2,"Bob",17]],
+ *     activeRow: 0, filterStatus: "checking"|"passed"|"failed",
+ *     resultRows: [[1,"Alice",25]] }
+ *
+ * Linked list:
+ *   { type: "linkedlist", step: N,
+ *     nodes: [{id,value,next},{id,value,next:null}],
+ *     active: [id], operation: "traverse"|"insert"|"delete" }
+ *
+ * Binary tree:
+ *   { type: "tree", step: N,
+ *     nodes: [{id,value,left,right}],
+ *     active: [id], highlighted: [id], operation: "search"|"insert" }
+ * ────────────────────────────────────────────────────────── */
+
+class StepPlayer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.steps = [];
+    this.current = -1;
+    this._running = false;
+    this._aborted = false;
+    this.onStep = null;
+  }
+
+  load(steps) {
+    this.stop();
+    this.steps = steps || [];
+    this.current = -1;
+    this._updateUI();
+  }
+
+  get speed() {
+    const s = document.getElementById('viz-speed');
+    return s ? 1000 / parseInt(s.value, 10) : 200;
+  }
+
+  async play() {
+    if (this._running) return;
+    if (this.current >= this.steps.length - 1) {
+      this.current = -1;
+    }
+    this._running = true;
+    this._aborted = false;
+    while (this._running && this.current < this.steps.length - 1) {
+      this.current++;
+      this._renderCurrent();
+      this._updateUI();
+      if (this.onStep) this.onStep(this.current, this.steps[this.current]);
+      await this._wait();
+    }
+    this._running = false;
+  }
+
+  pause() { this._running = false; }
+
+  stop() {
+    this._running = false;
+    this._aborted = true;
+    this.current = -1;
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this._updateUI();
+  }
+
+  next() {
+    if (this.current < this.steps.length - 1) {
+      this.current++;
+      this._renderCurrent();
+      this._updateUI();
+      if (this.onStep) this.onStep(this.current, this.steps[this.current]);
+    }
+  }
+
+  prev() {
+    if (this.current > 0) {
+      this.current--;
+      this._renderCurrent();
+      this._updateUI();
+    }
+  }
+
+  _wait() {
+    return new Promise(resolve => {
+      if (this._aborted) return resolve();
+      const delay = this.speed;
+      const id = setTimeout(() => {
+        if (!this._aborted) resolve();
+      }, delay);
+      this._currentTimer = id;
+    });
+  }
+
+  _renderCurrent() {
+    const step = this.steps[this.current];
+    if (!step) return;
+    const {ctx, canvas} = this;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    switch (step.type) {
+      case 'array':    VizDraw.array(ctx, canvas, step); break;
+      case 'sql':      VizDraw.sql(ctx, canvas, step); break;
+      case 'linkedlist': VizDraw.linkedList(ctx, canvas, step); break;
+      case 'tree':     VizDraw.tree(ctx, canvas, step); break;
+    }
+  }
+
+  _updateUI() {
+    const el = document.getElementById('viz-step');
+    if (el) el.textContent = `${this.current + 1}/${this.steps.length}`;
+  }
+}
+
+/* ── Drawing functions ──────────────────────────────────── */
+const VizDraw = {};
+
+VizDraw.array = function(ctx, canvas, s) {
+  const arr = s.array || [];
+  const n = arr.length;
+  if (n === 0) return;
+  const w = canvas.width - 40;
+  const h = canvas.height - 60;
+  const barW = w / n;
+  const maxVal = Math.max(...arr.map(Math.abs), 1);
+  const activeSet = new Set(s.active || []);
+  const sortedSet = new Set(s.sorted || []);
+
+  // Background
+  ctx.fillStyle = '#1e1e1e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Title
+  ctx.fillStyle = '#858585';
+  ctx.font = '12px Consolas,monospace';
+  ctx.fillText(`Шаг ${s.step}  ·  ${s.operation || ''}`, 12, 18);
+
+  // Bars
+  for (let i = 0; i < n; i++) {
+    const x = 20 + i * barW;
+    const valH = (Math.abs(arr[i]) / maxVal) * h;
+    const y = canvas.height - 30 - valH;
+
+    // Color
+    if (activeSet.has(i) && s.operation === 'swap') {
+      ctx.fillStyle = '#FF5555';        // red — swap
+    } else if (activeSet.has(i)) {
+      ctx.fillStyle = '#F1FA8C';        // yellow — compare
+    } else if (sortedSet.has(i)) {
+      ctx.fillStyle = '#50FA7B';        // green — sorted
+    } else {
+      ctx.fillStyle = '#4FC3F7';        // blue — default
+    }
+
+    // Bar with rounded top
+    const bw = Math.max(barW - 3, 4);
+    ctx.beginPath();
+    ctx.roundRect(x, y, bw, valH, [2, 2, 0, 0]);
+    ctx.fill();
+
+    // Label
+    ctx.fillStyle = '#d4d4d4';
+    ctx.font = `${Math.min(11, bw - 2)}px Consolas,monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(String(arr[i]), x + bw / 2, y - 4);
+  }
+
+  // Bottom axis
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(20, canvas.height - 30);
+  ctx.lineTo(canvas.width - 20, canvas.height - 30);
+  ctx.stroke();
+};
+
+VizDraw.linkedList = function(ctx, canvas, s) {
+  const nodes = s.nodes || [];
+  const activeSet = new Set(s.active || []);
+  const cx = canvas.width / 2;
+  const startY = 100;
+  const spacing = 120;
+  const radius = 28;
+
+  ctx.fillStyle = '#1e1e1e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#858585';
+  ctx.font = '12px Consolas,monospace';
+  ctx.fillText(`Шаг ${s.step}  ·  ${s.operation || ''}`, 12, 18);
+
+  const positions = {};
+  nodes.forEach((node, i) => {
+    positions[node.id] = { x: cx + (i - (nodes.length - 1) / 2) * spacing, y: startY };
+  });
+
+  for (const node of nodes) {
+    const pos = positions[node.id];
+    if (!pos) continue;
+
+    // Arrow to next
+    if (node.next !== null && node.next !== undefined && positions[node.next]) {
+      const nxt = positions[node.next];
+      const dx = nxt.x - pos.x, dy = nxt.y - pos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const ux = dx / dist, uy = dy / dist;
+      const sx = pos.x + ux * (radius + 4);
+      const sy = pos.y + uy * (radius + 4);
+      const ex = nxt.x - ux * (radius + 4);
+      const ey = nxt.y - uy * (radius + 4);
+
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+
+      // Arrowhead
+      const aLen = 8, aAngle = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - ux * aLen - uy * aLen * aAngle, ey - uy * aLen + ux * aLen * aAngle);
+      ctx.lineTo(ex - ux * aLen + uy * aLen * aAngle, ey - uy * aLen - ux * aLen * aAngle);
+      ctx.closePath();
+      ctx.fillStyle = '#555';
+      ctx.fill();
+    }
+
+    // Circle
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = activeSet.has(node.id) ? '#F1FA8C' : '#2d2d2d';
+    ctx.fill();
+    ctx.strokeStyle = activeSet.has(node.id) ? '#FFB86C' : '#4FC3F7';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Value text
+    ctx.fillStyle = activeSet.has(node.id) ? '#1e1e1e' : '#d4d4d4';
+    ctx.font = '14px Consolas,monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(node.value), pos.x, pos.y);
+  }
+};
+
+VizDraw.tree = function(ctx, canvas, s) {
+  const nodes = s.nodes || [];
+  if (nodes.length === 0) return;
+  const activeSet = new Set(s.active || []);
+  const highlightedSet = new Set(s.highlighted || []);
+  const radius = 22;
+  const levelH = 70;
+  const byId = {};
+  const children = {};
+
+  for (const n of nodes) {
+    byId[n.id] = n;
+    children[n.id] = [];
+    if (n.left !== null && n.left !== undefined) children[n.id].push(n.left);
+    if (n.right !== null && n.right !== undefined) children[n.id].push(n.right);
+  }
+
+  ctx.fillStyle = '#1e1e1e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#858585';
+  ctx.font = '12px Consolas,monospace';
+  ctx.fillText(`Шаг ${s.step}  ·  ${s.operation || ''}`, 12, 18);
+
+  function layout(id, depth, left, right, pos) {
+    if (id === null || id === undefined || !byId[id]) return;
+    const mid = (left + right) / 2;
+    pos[id] = { x: mid, y: 50 + depth * levelH };
+    const n = byId[id];
+    if (n.left !== null && n.left !== undefined) layout(n.left, depth + 1, left, mid, pos);
+    if (n.right !== null && n.right !== undefined) layout(n.right, depth + 1, mid, right, pos);
+  }
+
+  const pos = {};
+  layout(nodes[0].id, 0, 60, canvas.width - 60, pos);
+
+  // Draw edges first
+  for (const n of nodes) {
+    if (!pos[n.id]) continue;
+    for (const childId of (children[n.id] || [])) {
+      if (!pos[childId]) continue;
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pos[n.id].x, pos[n.id].y + radius);
+      ctx.lineTo(pos[childId].x, pos[childId].y - radius);
+      ctx.stroke();
+    }
+  }
+
+  // Draw nodes
+  for (const n of nodes) {
+    const p = pos[n.id];
+    if (!p) continue;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    if (activeSet.has(n.id)) {
+      ctx.fillStyle = '#F1FA8C';
+    } else if (highlightedSet.has(n.id)) {
+      ctx.fillStyle = '#6272A4';
+    } else {
+      ctx.fillStyle = '#2d2d2d';
+    }
+    ctx.fill();
+    ctx.strokeStyle = activeSet.has(n.id) ? '#FFB86C' : '#4FC3F7';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Value
+    ctx.fillStyle = activeSet.has(n.id) ? '#1e1e1e' : '#d4d4d4';
+    ctx.font = '13px Consolas,monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(n.value), p.x, p.y);
+  }
+};
+
+VizDraw.sql = function(ctx, canvas, s) {
+  const cols = s.columns || [];
+  const rows = s.rows || [];
+  const resultRows = s.resultRows || [];
+  if (cols.length === 0) return;
+
+  const topH = 30;
+  const rowH = 28;
+  const headerH = 24;
+  const margin = 10;
+  const tableW = canvas.width - 2 * margin;
+  const colW = tableW / cols.length;
+  const activeRow = s.activeRow;
+  const filterStatus = s.filterStatus || '';
+  const resultLabelH = 24;
+  const resultTop = topH + headerH + rows.length * rowH + 20;
+
+  ctx.fillStyle = '#1e1e1e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Title
+  ctx.fillStyle = '#858585';
+  ctx.font = '12px Consolas,monospace';
+  ctx.fillText(`Шаг ${s.step}  ·  фильтр: ${s.filterStatus || '—'}`, 12, 14);
+
+  // Headers
+  ctx.fillStyle = '#333';
+  ctx.fillRect(margin, topH, tableW, headerH);
+  for (let j = 0; j < cols.length; j++) {
+    ctx.fillStyle = '#4FC3F7';
+    ctx.font = 'bold 12px Consolas,monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cols[j], margin + j * colW + colW / 2, topH + headerH / 2);
+  }
+
+  // Rows
+  for (let i = 0; i < rows.length; i++) {
+    const y = topH + headerH + i * rowH;
+    const isActive = i === activeRow;
+
+    // Background
+    if (isActive) {
+      if (filterStatus === 'passed') {
+        ctx.fillStyle = 'rgba(80,250,123,0.2)';
+      } else if (filterStatus === 'failed') {
+        ctx.fillStyle = 'rgba(255,85,85,0.15)';
+      } else {
+        ctx.fillStyle = 'rgba(241,250,140,0.2)';
+      }
+    } else {
+      ctx.fillStyle = (i % 2 === 0) ? '#1e1e1e' : '#222';
+    }
+    ctx.fillRect(margin, y, tableW, rowH);
+
+    // Border for active
+    if (isActive) {
+      ctx.strokeStyle = filterStatus === 'passed' ? '#50FA7B' : filterStatus === 'failed' ? '#FF5555' : '#F1FA8C';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(margin, y, tableW, rowH);
+    } else {
+      ctx.strokeStyle = '#2d2d2d';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(margin, y); ctx.lineTo(margin + tableW, y); ctx.stroke();
+    }
+
+    // Cells
+    const row = rows[i];
+    for (let j = 0; j < cols.length && j < row.length; j++) {
+      ctx.fillStyle = isActive && filterStatus === 'failed' ? '#666' : '#d4d4d4';
+      ctx.font = '11px Consolas,monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(row[j]), margin + j * colW + colW / 2, y + rowH / 2);
+    }
+  }
+
+  // Result section
+  if (resultRows.length > 0) {
+    ctx.fillStyle = '#333';
+    ctx.fillRect(margin, resultTop, tableW, resultLabelH);
+    ctx.fillStyle = '#50FA7B';
+    ctx.font = '11px Consolas,monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`Результат выборки (${resultRows.length} строк)`, canvas.width / 2, resultTop + resultLabelH / 2);
+
+    for (let i = 0; i < Math.min(resultRows.length, 4); i++) {
+      const y = resultTop + resultLabelH + i * rowH;
+      ctx.fillStyle = (i % 2 === 0) ? '#1e1e1e' : '#222';
+      ctx.fillRect(margin, y, tableW, rowH);
+      const row = resultRows[i];
+      for (let j = 0; j < cols.length && j < row.length; j++) {
+        ctx.fillStyle = '#d4d4d4';
+        ctx.font = '11px Consolas,monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(row[j]), margin + j * colW + colW / 2, y + rowH / 2);
+      }
+    }
+    if (resultRows.length > 4) {
+      ctx.fillStyle = '#858585';
+      ctx.font = '11px Consolas,monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`... и ещё ${resultRows.length - 4} строк`, canvas.width / 2, resultTop + resultLabelH + 5 * rowH - 6);
+    }
+  }
+
+  // Bottom line for source table
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin, topH + headerH + rows.length * rowH);
+  ctx.lineTo(margin + tableW, topH + headerH + rows.length * rowH);
+  ctx.stroke();
+};
+
+// ============================================================
+// DEMO SNAPSHOT GENERATORS
+// ============================================================
+
+function generateBubbleSortSteps(arr) {
+  const a = [...arr];
+  const steps = [];
+  let stepNum = 0;
+  const n = a.length;
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < n - i - 1; j++) {
+      steps.push({
+        type: 'array', step: stepNum++,
+        array: [...a], active: [j, j + 1],
+        sorted: [...Array(Math.max(0, n - i)).keys()].slice(n - i - 1),
+        operation: 'compare'
+      });
+      if (a[j] > a[j + 1]) {
+        [a[j], a[j + 1]] = [a[j + 1], a[j]];
+        steps.push({
+          type: 'array', step: stepNum++,
+          array: [...a], active: [j, j + 1],
+          sorted: [...Array(Math.max(0, n - i)).keys()].slice(n - i - 1),
+          operation: 'swap'
+        });
+      }
+    }
+  }
+  steps.push({
+    type: 'array', step: stepNum++,
+    array: [...a], active: [],
+    sorted: [...Array(n).keys()],
+    operation: 'done'
+  });
+  return steps;
+}
+
+function generateSQLSelectSteps(cols, rows, conditionFn) {
+  const steps = [];
+  let stepNum = 0;
+  const resultRows = [];
+  for (let i = 0; i < rows.length; i++) {
+    const passed = conditionFn(rows[i]);
+    steps.push({
+      type: 'sql', step: stepNum++,
+      columns: cols, rows: rows,
+      activeRow: i, filterStatus: passed ? 'passed' : 'failed',
+      resultRows: [...resultRows, ...(passed ? [rows[i]] : [])]
+    });
+    if (passed) resultRows.push(rows[i]);
+  }
+  steps.push({
+    type: 'sql', step: stepNum++,
+    columns: cols, rows: rows,
+    activeRow: -1, filterStatus: 'done',
+    resultRows: resultRows
+  });
+  return steps;
+}
+
+function generateLinkedListSteps(values) {
+  const steps = [];
+  let stepNum = 0;
+  for (let i = 0; i < values.length; i++) {
+    const nodes = values.slice(0, i + 1).map((v, j) => ({
+      id: j + 1, value: v, next: j < i ? j + 2 : null
+    }));
+    steps.push({
+      type: 'linkedlist', step: stepNum++,
+      nodes: JSON.parse(JSON.stringify(nodes)),
+      active: [i + 1],
+      operation: i === 0 ? 'create' : 'append'
+    });
+  }
+  return steps;
+}
+
+function generateTreeSteps(values) {
+  const steps = [];
+  let stepNum = 0;
+  const nodes = [];
+  for (let i = 0; i < values.length; i++) {
+    nodes.push({
+      id: i + 1, value: values[i],
+      left: null, right: null
+    });
+    // BST insert logic for visual layout hints
+    if (i > 0) {
+      let cur = 0;
+      while (true) {
+        if (values[i] < values[cur]) {
+          if (nodes[cur].left === null) { nodes[cur].left = i + 1; break; }
+          cur = nodes[cur].left - 1;
+        } else {
+          if (nodes[cur].right === null) { nodes[cur].right = i + 1; break; }
+          cur = nodes[cur].right - 1;
+        }
+      }
+    }
+    steps.push({
+      type: 'tree', step: stepNum++,
+      nodes: JSON.parse(JSON.stringify(nodes)),
+      active: [i + 1],
+      highlighted: [...Array(i).keys()].map(k => k + 1),
+      operation: i === 0 ? 'root' : 'insert'
+    });
+  }
+  return steps;
+}
+
+// ============================================================
+// TRANSPILER (JS) — Event grouping + Pen + Electronics
+// ============================================================
+function _stmts(blocks, indent) {
+  const out = [];
+  const pad = '  '.repeat(indent);
+  for (const b of blocks) {
+    out.push(_stmt(b, indent));
+  }
+  return out.join('\n');
+}
+
+function expr(block) {
+  if (typeof block !== 'object' || block === null) return String(block ?? '0');
+  switch (block.type) {
+    case 'operator_add':   return `(Number(${expr(block.a)}) + Number(${expr(block.b)}))`;
+    case 'operator_subtract': return `(Number(${expr(block.a)}) - Number(${expr(block.b)}))`;
+    case 'operator_multiply': return `(Number(${expr(block.a)}) * Number(${expr(block.b)}))`;
+    case 'operator_divide':   return `(Number(${expr(block.a)}) / Number(${expr(block.b)}))`;
+    case 'operator_gt':     return `(Number(${expr(block.a)}) > Number(${expr(block.b)}))`;
+    case 'operator_lt':     return `(Number(${expr(block.a)}) < Number(${expr(block.b)}))`;
+    case 'operator_equals': return `(${expr(block.a)} == ${expr(block.b)})`;
+    case 'operator_and':    return `(${expr(block.a)} && ${expr(block.b)})`;
+    case 'operator_or':     return `(${expr(block.a)} || ${expr(block.b)})`;
+    case 'operator_not':    return `!(${expr(block.operand)})`;
+    case 'operator_random': return `random(${expr(block.from)}, ${expr(block.to)})`;
+    case 'operator_mod':    return `(${expr(block.a)} % ${expr(block.b)})`;
+    case 'operator_round':  return `Math.round(${expr(block.num)})`;
+    case 'operator_join':   return `String(${expr(block.a)}) + String(${expr(block.b)})`;
+    case 'operator_length': return `String(${expr(block.string)}).length`;
+    case 'variable_get':    return block.name;
+
+    // electronics — expression blocks
+    case 'arduino_digital_read':  return `await digitalRead(${block.pin})`;
+    case 'arduino_analog_read':   return `await analogRead(${block.pin})`;
+    case 'sensor_distance':       return `await getDistance(${block.trigger_pin}, ${block.echo_pin})`;
+    case 'sensor_light':          return `await getLightValue(${block.pin})`;
+
+    default: return String(block.value ?? '0');
+  }
+}
+
+function _stmt(block, indent) {
+  const pad = '  '.repeat(indent);
+  const t = block.type;
+
+  switch (t) {
+    // ── control ────────────────────────
+    case 'control_repeat':
+      return `${pad}for (let i = 0; i < ${block.times}; i++) {\n${_stmts(block.children || [], indent + 1)}\n${pad}}`;
+    case 'control_repeat_until':
+      return `${pad}while (!(${expr(block.condition)})) {\n${_stmts(block.children || [], indent + 1)}\n${pad}}`;
+    case 'control_forever':
+      return `${pad}while (true) {\n${_stmts(block.children || [], indent + 1)}\n${pad}}`;
+    case 'control_if':
+      return `${pad}if (${expr(block.condition)}) {\n${_stmts(block.children || [], indent + 1)}\n${pad}}`;
+    case 'control_if_else':
+      return `${pad}if (${expr(block.condition)}) {\n${_stmts(block.children || [], indent + 1)}\n${pad}} else {\n${_stmts(block.else_children || [], indent + 1)}\n${pad}}`;
+    case 'control_wait':
+      return `${pad}await wait(${block.secs});`;
+
+    // ── motion ─────────────────────────
+    case 'motion_move':
+      return `${pad}move(${block.steps});`;
+    case 'motion_turn_right':
+      return `${pad}turn(${block.degrees});`;
+    case 'motion_turn_left':
+      return `${pad}turn(-${block.degrees});`;
+    case 'motion_goto':
+      return `${pad}goto(${block.x}, ${block.y});`;
+    case 'motion_set_x':
+      return `${pad}setX(${block.x});`;
+    case 'motion_set_y':
+      return `${pad}setY(${block.y});`;
+    case 'motion_change_x':
+      return `${pad}changeX(${block.dx});`;
+    case 'motion_change_y':
+      return `${pad}changeY(${block.dy});`;
+    case 'motion_point_in_direction':
+      return `${pad}pointInDirection(${block.direction});`;
+
+    // ── looks ──────────────────────────
+    case 'looks_say':
+      return `${pad}say(${JSON.stringify(block.message)});`;
+    case 'looks_say_for_secs':
+      return `${pad}await sayForSecs(${JSON.stringify(block.message)}, ${block.secs});`;
+    case 'looks_think':
+      return `${pad}think(${JSON.stringify(block.message)});`;
+    case 'looks_think_for_secs':
+      return `${pad}await thinkForSecs(${JSON.stringify(block.message)}, ${block.secs});`;
+    case 'looks_show':
+      return `${pad}show();`;
+    case 'looks_hide':
+      return `${pad}hide();`;
+    case 'looks_switch_costume':
+      return `${pad}switchCostume(${JSON.stringify(block.costume)});`;
+    case 'looks_next_costume':
+      return `${pad}nextCostume();`;
+
+    // ── variables ──────────────────────
+    case 'variable_set':
+      return `${pad}${block.name} = ${expr(block.value)};`;
+    case 'variable_change':
+      return `${pad}${block.name} += ${expr(block.value)};`;
+
+    // ── procedures ─────────────────────
+    case 'procedures_call':
+      return `${pad}${block.name}(${(block.args || []).map(a => typeof a === 'object' ? expr(a) : a).join(', ')});`;
+    case 'procedures_definition':
+      return `${pad}async function ${block.name}(${(block.params || []).join(', ')}) {\n${_stmts(block.children || [], indent + 1)}\n${pad}}`;
+
+    // ── pen ────────────────────────────
+    case 'pen_clear':
+      return `${pad}await penClear();`;
+    case 'pen_down':
+      return `${pad}await penDown();`;
+    case 'pen_up':
+      return `${pad}await penUp();`;
+    case 'pen_set_color':
+      return `${pad}await setPenColor(${expr(block.color)});`;
+    case 'pen_set_size':
+      return `${pad}await setPenSize(${expr(block.size)});`;
+
+    // ── electronics ────────────────────
+    case 'arduino_set_pin_mode':
+      return `${pad}await setPinMode(${block.pin}, ${expr(block.mode)});`;
+    case 'arduino_digital_write':
+      return `${pad}await digitalWrite(${block.pin}, ${expr(block.value)});`;
+    case 'arduino_analog_write':
+      return `${pad}await analogWrite(${block.pin}, ${expr(block.value)});`;
+
+    // ── broadcast (from Scratch opcodes) ─
+    case 'broadcast':
+      return `${pad}await broadcast(${JSON.stringify(block.message)});`;
+    case 'broadcast_and_wait':
+      return `${pad}await broadcastAndWait(${JSON.stringify(block.message)});`;
+
+    default:
+      return `${pad}// unknown: ${t}`;
+  }
+}
+
+function transpileProject(blocks) {
+  blocks = Array.isArray(blocks) ? blocks : [blocks];
+  const hasEvents = blocks.some(b => b.type === 'event_when_flag_clicked' || b.type === 'event_when_broadcast_received');
+
+  if (!hasEvents) {
+    return { code: _stmts(blocks, 0), handlers: null };
+  }
+
+  const parts = [];
+  let idx = 0;
+  const flagList = [];
+  const broadcastMap = {};
+
+  for (const b of blocks) {
+    if (b.type === 'event_when_flag_clicked') {
+      const name = `__s${idx++}`;
+      parts.push(`async function ${name}() {\n${_stmts(b.children || [], 1)}\n}`);
+      flagList.push(name);
+    } else if (b.type === 'event_when_broadcast_received') {
+      const msg = b.broadcast || 'message';
+      const name = `__s${idx++}`;
+      parts.push(`async function ${name}() {\n${_stmts(b.children || [], 1)}\n}`);
+      if (!broadcastMap[msg]) broadcastMap[msg] = [];
+      broadcastMap[msg].push(name);
+    } else {
+      parts.push(_stmt(b, 0));
+    }
+  }
+
+  const bcParts = Object.entries(broadcastMap)
+    .map(([msg, fns]) => `${JSON.stringify(msg)}: [${fns.join(', ')}]`)
+    .join(', ');
+  parts.push(`\nreturn { flags: [${flagList.join(', ')}], broadcasts: { ${bcParts} } };`);
+
+  return { code: parts.join('\n'), handlers: { flags: flagList, broadcasts: broadcastMap } };
+}
+
+// ============================================================
+// SCRATCH 3.0 .sb3 PARSER — Flat blocks → Our tree format
+// ============================================================
+
+const OPCODE_MAP = {
+  'motion_movesteps':'motion_move','motion_turnright':'motion_turn_right',
+  'motion_turnleft':'motion_turn_left','motion_gotoxy':'motion_goto',
+  'motion_setx':'motion_set_x','motion_sety':'motion_set_y',
+  'motion_changexby':'motion_change_x','motion_changeyby':'motion_change_y',
+  'motion_pointindirection':'motion_point_in_direction',
+  'looks_say':'looks_say','looks_sayforsecs':'looks_say_for_secs',
+  'looks_think':'looks_think','looks_thinkforsecs':'looks_think_for_secs',
+  'looks_show':'looks_show','looks_hide':'looks_hide',
+  'looks_switchcostumeto':'looks_switch_costume','looks_nextcostume':'looks_next_costume',
+  'control_repeat':'control_repeat','control_repeat_until':'control_repeat_until',
+  'control_forever':'control_forever','control_if':'control_if',
+  'control_if_else':'control_if_else','control_wait':'control_wait',
+  'event_whenflagclicked':'event_when_flag_clicked',
+  'event_whenbroadcastreceived':'event_when_broadcast_received',
+  'event_broadcast':'broadcast','event_broadcastandwait':'broadcast_and_wait',
+  'operator_add':'operator_add','operator_subtract':'operator_subtract',
+  'operator_multiply':'operator_multiply','operator_divide':'operator_divide',
+  'operator_gt':'operator_gt','operator_lt':'operator_lt',
+  'operator_equals':'operator_equals','operator_and':'operator_and',
+  'operator_or':'operator_or','operator_not':'operator_not',
+  'operator_random':'operator_random','operator_mod':'operator_mod',
+  'operator_round':'operator_round','operator_join':'operator_join',
+  'operator_length':'operator_length',
+  'data_setvariableto':'variable_set','data_changevariableby':'variable_change',
+  'data_variable':'variable_get',
+  'procedures_call':'procedures_call','procedures_definition':'procedures_definition',
+  'pen_clear':'pen_clear','pen_down':'pen_down','pen_up':'pen_up',
+  'pen_setColor':'pen_set_color','pen_setSize':'pen_set_size',
+  'arduino_digitalWrite':'arduino_digital_write',
+  'arduino_analogWrite':'arduino_analog_write',
+  'arduino_digitalRead':'arduino_digital_read',
+  'arduino_analogRead':'arduino_analog_read',
+  'arduino_setPinMode':'arduino_set_pin_mode',
+  'sensor_distance':'sensor_distance','sensor_light':'sensor_light',
+};
+
+const INPUT_NAME = {
+  'motion_move':{'STEPS':'steps'},'motion_turn_right':{'DEGREES':'degrees'},
+  'motion_turn_left':{'DEGREES':'degrees'},
+  'motion_goto':{'X':'x','Y':'y'},'motion_set_x':{'X':'x'},'motion_set_y':{'Y':'y'},
+  'motion_change_x':{'X':'dx'},'motion_change_y':{'Y':'dy'},
+  'motion_point_in_direction':{'DIRECTION':'direction'},
+  'control_repeat':{'TIMES':'times'},'control_repeat_until':{'CONDITION':'condition'},
+  'control_if':{'CONDITION':'condition'},'control_if_else':{'CONDITION':'condition'},
+  'control_wait':{'DURATION':'secs'},
+  'looks_say':{'MESSAGE':'message'},'looks_think':{'MESSAGE':'message'},
+  'looks_say_for_secs':{'MESSAGE':'message','SECS':'secs'},
+  'looks_think_for_secs':{'MESSAGE':'message','SECS':'secs'},
+  'looks_switch_costume':{'COSTUME':'costume'},
+  'variable_set':{'VALUE':'value'},'variable_change':{'VALUE':'value'},
+  'pen_set_color':{'COLOR':'color'},'pen_set_size':{'SIZE':'size'},
+  'arduino_digital_write':{'PIN':'pin','VALUE':'value'},
+  'arduino_analog_write':{'PIN':'pin','VALUE':'value'},
+  'arduino_set_pin_mode':{'PIN':'pin','MODE':'mode'},
+  'sensor_distance':{'TRIG':'trigger_pin','ECHO':'echo_pin'},
+  'sensor_light':{'PIN':'pin'},
+  'broadcast':{'BROADCAST_OPTION':'message'},
+  'broadcast_and_wait':{'BROADCAST_OPTION':'message'},
+  'operator_add':{'NUM1':'a','NUM2':'b'},'operator_subtract':{'NUM1':'a','NUM2':'b'},
+  'operator_multiply':{'NUM1':'a','NUM2':'b'},'operator_divide':{'NUM1':'a','NUM2':'b'},
+  'operator_gt':{'OPERAND1':'a','OPERAND2':'b'},'operator_lt':{'OPERAND1':'a','OPERAND2':'b'},
+  'operator_equals':{'OPERAND1':'a','OPERAND2':'b'},
+  'operator_and':{'OPERAND1':'a','OPERAND2':'b'},'operator_or':{'OPERAND1':'a','OPERAND2':'b'},
+  'operator_not':{'OPERAND':'operand'},
+  'operator_random':{'FROM':'from','TO':'to'},'operator_mod':{'NUM1':'a','NUM2':'b'},
+  'operator_round':{'NUM':'num'},'operator_join':{'STRING1':'a','STRING2':'b'},
+  'operator_length':{'STRING':'string'},
+};
+
+const FIELD_PARAM = {
+  'variable_get':{'VARIABLE':'name'},
+  'event_when_broadcast_received':{'BROADCAST_OPTION':'broadcast'},
+  'broadcast':{'BROADCAST_OPTION':'message'},
+  'broadcast_and_wait':{'BROADCAST_OPTION':'message'},
+};
+
+function convertSb3Blocks(sb3Blocks) {
+  function _convertChain(startId) {
+    const result = [];
+    let id = startId;
+    while (id && sb3Blocks[id]) {
+      const conv = _convertBlock(id);
+      if (conv) result.push(conv);
+      id = sb3Blocks[id].next;
+    }
+    return result;
+  }
+
+  function _convertBlock(id) {
+    const b = sb3Blocks[id];
+    if (!b) return null;
+    const itype = OPCODE_MAP[b.opcode];
+    if (!itype) return null;
+
+    const out = { type: itype };
+
+    if (b.inputs?.SUBSTACK) {
+      const [, bodyId] = b.inputs.SUBSTACK;
+      if (bodyId) out.children = _convertChain(bodyId);
+    }
+    if (b.inputs?.SUBSTACK2) {
+      const [, bodyId] = b.inputs.SUBSTACK2;
+      if (bodyId) out.else_children = _convertChain(bodyId);
+    }
+
+    const imap = INPUT_NAME[itype];
+    if (imap && b.inputs) {
+      for (const [sk, ok] of Object.entries(imap)) {
+        const inp = b.inputs[sk];
+        if (inp) out[ok] = _parseInput(inp);
+      }
+    }
+
+    const fmap = FIELD_PARAM[itype];
+    if (fmap && b.fields) {
+      for (const [sk, ok] of Object.entries(fmap)) {
+        const f = b.fields[sk];
+        if (f) out[ok] = Array.isArray(f) ? f[0] : f;
+      }
+    }
+
+    if ((itype === 'variable_set' || itype === 'variable_change') && b.fields?.VARIABLE) {
+      out.name = Array.isArray(b.fields.VARIABLE) ? b.fields.VARIABLE[0] : b.fields.VARIABLE;
+    }
+
+    if (itype === 'procedures_call' && b.mutation?.proccode) {
+      out.name = b.mutation.proccode.replace(/\s+%[snb]/g, '').trim();
+      let argIds = [];
+      try { argIds = JSON.parse(b.mutation.argumentids || '[]'); } catch { argIds = []; }
+      out.args = [];
+      for (let i = 0; i < argIds.length; i++) {
+        const inp = b.inputs?.[`arg${i + 1}`];
+        out.args.push(inp ? _parseInput(inp) : '');
+      }
+    }
+
+    if (itype === 'procedures_definition') {
+      const pId = b.inputs?.custom_block?.[1];
+      if (pId && sb3Blocks[pId]?.fields?.PROCEDURE) {
+        const pf = sb3Blocks[pId].fields.PROCEDURE;
+        const procStr = Array.isArray(pf) ? pf[0] : pf;
+        out.name = procStr.replace(/\s+%[snb]/g, '').trim();
+        const nParams = (procStr.match(/%[snb]/g) || []).length;
+        out.params = [];
+        for (let i = 1; i <= nParams; i++) {
+          const an = sb3Blocks[pId].fields?.[`arg${i}`]?.[0];
+          if (an) out.params.push(an);
+        }
+      }
+    }
+
+    return out;
+  }
+
+  function _parseInput(input) {
+    if (!input || !Array.isArray(input)) return input ?? 0;
+    if (input.length === 2) {
+      const [t, v] = input;
+      if (t === 1 && Array.isArray(v)) return v[1] ?? 0;
+      if (t === 2) return _convertExpr(v);
+      if (t === 3 && Array.isArray(v)) {
+        if (v[0]) return _convertExpr(v[0]) ?? v[1] ?? 0;
+        return v[1] ?? 0;
+      }
+      if (t >= 4) return v ?? 0;
+      return v ?? 0;
+    }
+    if (input.length === 3) {
+      const [t, v1, v2] = input;
+      if (t === 2) return _convertExpr(v1);
+      if (t === 3) return _convertExpr(v1) ?? (Array.isArray(v2) ? v2[1] : v2) ?? 0;
+      if (t === 1 && Array.isArray(v1)) return v1[1] ?? 0;
+      return v1 ?? (Array.isArray(v2) ? v2[1] : v2) ?? 0;
+    }
+    return 0;
+  }
+
+  function _convertExpr(id) {
+    if (!id || !sb3Blocks[id]) return null;
+    const b = sb3Blocks[id];
+    const itype = OPCODE_MAP[b.opcode];
+    if (!itype) {
+      if (b.opcode === 'data_variable' && b.fields?.VARIABLE) {
+        const n = Array.isArray(b.fields.VARIABLE) ? b.fields.VARIABLE[0] : b.fields.VARIABLE;
+        return { type: 'variable_get', name: n };
+      }
+      return null;
+    }
+    const out = { type: itype };
+    const imap = INPUT_NAME[itype];
+    if (imap && b.inputs) {
+      for (const [sk, ok] of Object.entries(imap)) {
+        const inp = b.inputs[sk];
+        if (inp) out[ok] = _parseInput(inp);
+      }
+    }
+    if (itype === 'variable_get' && b.fields?.VARIABLE) {
+      out.name = Array.isArray(b.fields.VARIABLE) ? b.fields.VARIABLE[0] : b.fields.VARIABLE;
+    }
+    return out;
+  }
+
+  const topIds = Object.entries(sb3Blocks)
+    .filter(([, b]) => b.topLevel && !b.parent)
+    .map(([id]) => id);
+
+  const result = [];
+  for (const id of topIds) {
+    const b = sb3Blocks[id];
+    const itype = OPCODE_MAP[b.opcode];
+    if (itype === 'event_when_flag_clicked' || itype === 'event_when_broadcast_received') {
+      const conv = _convertBlock(id);
+      if (conv) {
+        conv.children = _convertChain(b.next);
+        result.push(conv);
+      }
+    } else if (itype === 'procedures_definition') {
+      const conv = _convertBlock(id);
+      if (conv) result.push(conv);
+    } else {
+      result.push(..._convertChain(id));
+    }
+  }
+  return result;
+}
+
+// ============================================================
+// UI & INTEGRATION
+// ============================================================
+const canvas = document.getElementById('canvas');
+const editor = document.getElementById('editor');
+const consoleEl = document.getElementById('console');
+const infoX = document.getElementById('info-x');
+const infoY = document.getElementById('info-y');
+const infoAngle = document.getElementById('info-angle');
+const infoVis = document.getElementById('info-vis');
+const infoPen = document.getElementById('info-pen');
+const infoHw = document.getElementById('info-hw');
+const infoThreads = document.getElementById('info-threads');
+const statusLabel = document.getElementById('status-label');
+const btnConnect = document.getElementById('btn-connect');
+
+const runtime = new ScratchRuntime(canvas);
+let abortController = null;
+
+runtime._onUpdate = (state) => {
+  infoX.textContent = Math.round(state.x ?? runtime.x);
+  infoY.textContent = Math.round(state.y ?? runtime.y);
+  infoAngle.textContent = Math.round(state.direction ?? runtime.direction);
+  infoVis.textContent = (state.visible ?? runtime.visible) ? 'да' : 'нет';
+  infoPen.textContent = (state.penDown ?? runtime.penIsDown) ? '⬇ вниз' : '⬆ вверх';
+  infoHw.textContent = (state.hw ?? runtime.hardwareConnected) ? 'подкл' : 'откл';
+  infoThreads.textContent = state.tasks ?? runtime.scheduler._tasks.length;
+};
+runtime._onLog = (level, msg) => {
+  const div = document.createElement('div');
+  div.className = `msg-${level}`;
+  const tag = level === 'hardware' ? 'HW' : level === 'rx' ? 'RX' : level === 'tx' ? 'TX' : level === 'warn' ? 'WARN' : level;
+  div.textContent = `[${tag}] ${msg}`;
+  consoleEl.appendChild(div);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+  // Forward to Python bridge if available
+  if (window.bridge && window.bridge.logFromJs) {
+    try { window.bridge.logFromJs(level, msg); } catch(e) {}
+  }
+};
+
+runtime.render();
+
+// ── Step Player for Visualization ──────────
+const player = new StepPlayer(canvas);
+let currentMode = 'scratch'; // 'scratch' | 'algo' | 'sql'
+
+function setMode(mode) {
+  currentMode = mode;
+  const vizControls = document.getElementById('viz-controls');
+  const btnRun = document.getElementById('btn-run');
+  const btnStop = document.getElementById('btn-stop');
+  const btnPen = document.getElementById('btn-pen-clear');
+  const btnConnect = document.getElementById('btn-connect');
+  const btnSb3 = document.getElementById('btn-open-sb3');
+  const btnCpp = document.getElementById('btn-cpp');
+  const label = document.getElementById('viz-mode-label');
+
+  const btnScratch = document.getElementById('btn-mode-scratch');
+  const btnAlgo = document.getElementById('btn-mode-algo');
+  const btnSql = document.getElementById('btn-mode-sql');
+
+  [btnScratch, btnAlgo, btnSql].forEach(b => b.style.background = '#555');
+  if (mode === 'scratch') {
+    btnScratch.style.background = '#0e639c';
+    btnRun.style.display = ''; btnStop.style.display = '';
+    btnPen.style.display = ''; btnConnect.style.display = '';
+    btnSb3.style.display = ''; btnCpp.style.display = '';
+    vizControls.style.display = 'none';
+    label.textContent = '';
+    player.stop();
+    document.getElementById('btn-send-algo').style.display = 'none';
+    document.getElementById('btn-send-sql').style.display = 'none';
+  } else if (mode === 'algo') {
+    btnAlgo.style.background = '#0e639c';
+    btnRun.style.display = 'none'; btnStop.style.display = 'none';
+    btnPen.style.display = 'none'; btnConnect.style.display = 'none';
+    btnSb3.style.display = 'none'; btnCpp.style.display = 'none';
+    vizControls.style.display = 'flex';
+    label.textContent = '📊 Алгоритмы';
+    document.getElementById('btn-send-algo').style.display = '';
+    document.getElementById('btn-send-sql').style.display = 'none';
+    // Load default demo
+    if (player.steps.length === 0) {
+      player.load(generateBubbleSortSteps([34, 12, 67, 3, 89, 25, 8, 42, 55, 19]));
+      player.next();
+    }
+  } else if (mode === 'sql') {
+    btnSql.style.background = '#0e639c';
+    btnRun.style.display = 'none'; btnStop.style.display = 'none';
+    btnPen.style.display = 'none'; btnConnect.style.display = 'none';
+    btnSb3.style.display = 'none'; btnCpp.style.display = 'none';
+    vizControls.style.display = 'flex';
+    label.textContent = '🗄 SQL';
+    document.getElementById('btn-send-algo').style.display = 'none';
+    document.getElementById('btn-send-sql').style.display = '';
+    if (player.steps.length === 0) {
+      player.load(generateSQLSelectSteps(
+        ['id','name','age','city'],
+        [[1,'Alice',25,'Moscow'],[2,'Bob',17,'SPb'],[3,'Charlie',30,'Kazan'],[4,'Diana',22,'Moscow'],[5,'Eve',19,'Novosibirsk']],
+        row => row[2] > 20
+      ));
+      player.next();
+    }
+  }
+}
+
+// Mode buttons
+document.getElementById('btn-mode-scratch').addEventListener('click', () => setMode('scratch'));
+document.getElementById('btn-mode-algo').addEventListener('click', () => setMode('algo'));
+document.getElementById('btn-mode-sql').addEventListener('click', () => setMode('sql'));
+
+// Step player controls
+document.getElementById('viz-play').addEventListener('click', () => player.play());
+document.getElementById('viz-pause').addEventListener('click', () => player.pause());
+document.getElementById('viz-stop').addEventListener('click', () => player.stop());
+document.getElementById('viz-prev').addEventListener('click', () => player.prev());
+document.getElementById('viz-next').addEventListener('click', () => player.next());
+
+// Send code from editor to visualization
+document.getElementById('btn-send-algo').addEventListener('click', () => {
+  try {
+    const data = JSON.parse(editor.value);
+    // Support both direct step arrays and block JSON
+    if (Array.isArray(data)) {
+      if (data.length > 0 && data[0].type) {
+        player.load(data);
+        player.next();
+        statusLabel.textContent = `✓ Загружено ${data.length} шагов визуализации`;
+        return;
+      }
+    }
+    statusLabel.textContent = '✗ Нужен массив snapshot-пакетов (type: array/linkedlist/tree)';
+  } catch {
+    statusLabel.textContent = '✗ Неверный JSON';
+  }
+});
+
+document.getElementById('btn-send-sql').addEventListener('click', () => {
+  try {
+    const data = JSON.parse(editor.value);
+    if (Array.isArray(data) && data.length > 0 && data[0].type === 'sql') {
+      player.load(data);
+      player.next();
+      statusLabel.textContent = `✓ Загружено ${data.length} SQL-шагов`;
+    } else if (data.columns && data.rows) {
+      // Generate steps from table schema
+      const conditionStr = data.where || 'row => true';
+      const fn = new Function('row', `return ${conditionStr};`);
+      const steps = generateSQLSelectSteps(data.columns, data.rows, fn);
+      player.load(steps);
+      player.next();
+      statusLabel.textContent = `✓ SQL: ${data.rows.length} строк, фильтр: ${conditionStr}`;
+    } else {
+      statusLabel.textContent = '✗ Формат: массив sql-шагов или {columns, rows, where}';
+    }
+  } catch {
+    statusLabel.textContent = '✗ Неверный JSON';
+  }
+});
+
+// Add hidden send buttons to toolbar
+(function() {
+  const spacer = document.querySelector('#toolbar .spacer');
+  const btnAlgo = document.createElement('button');
+  btnAlgo.id = 'btn-send-algo';
+  btnAlgo.style.display = 'none';
+  btnAlgo.style.background = '#2ea043';
+  btnAlgo.textContent = '📊 Показать алгоритм';
+  spacer.parentNode.insertBefore(btnAlgo, spacer);
+
+  const btnSql = document.createElement('button');
+  btnSql.id = 'btn-send-sql';
+  btnSql.style.display = 'none';
+  btnSql.style.background = '#2ea043';
+  btnSql.textContent = '🗄 Выполнить SQL';
+  spacer.parentNode.insertBefore(btnSql, spacer);
+})();
+
+function loadJSON(jsonStr) {
+  try {
+    const blocks = JSON.parse(jsonStr);
+    const result = transpileProject(blocks);
+    editor.value = result.code;
+    // store handlers for scheduler use
+    editor.dataset.handlers = JSON.stringify(result.handlers);
+    statusLabel.textContent = result.handlers ? '✓ Код с событиями' : '✓ Код сгенерирован';
+  } catch (e) {
+    statusLabel.textContent = `✗ Ошибка: ${e.message}`;
+  }
+}
+
+async function runCode() {
+  if (abortController) return;
+  abortController = new AbortController();
+
+  consoleEl.innerHTML = '<div class="msg-info">[info] запуск...</div>';
+
+  runtime.x = 0; runtime.y = 0; runtime.direction = 0; runtime.visible = true;
+  runtime.penLines = []; runtime.penIsDown = false;
+  if (!runtime.hardwareConnected) {
+    runtime._pinModes = {}; runtime._pinValues = {};
+  }
+  runtime.scheduler.reset();
+  runtime.render(); runtime._notify();
+
+  const runtimeMethods = [
+    'wait','move','turn','goto','setX','setY','changeX','changeY','pointInDirection',
+    'home','clearCanvas','setDirection','stamp','glide',
+    'show','hide','say','think','sayForSecs','thinkForSecs','switchCostume','nextCostume',
+    'penDown','penUp','penClear','setPenColor','setPenSize',
+    'setPinMode','digitalWrite','analogWrite','digitalRead','analogRead',
+    'getDistance','getLightValue',
+    'tone','noTone','servoWrite',
+    'displayPrint','displayClear','dbQuery',
+    'broadcast','broadcastAndWait',
+  ];
+  const bindings = runtimeMethods.map(m => `const ${m} = runtime.${m}.bind(runtime);`).join('\n');
+
+  const userCode = editor.value;
+  let handlers;
+
+  // Try reading stored handlers from loadJSON, else parse from code
+  try {
+    handlers = JSON.parse(editor.dataset.handlers || 'null');
+  } catch { handlers = null; }
+
+  document.getElementById('btn-run').textContent = '⏳ Выполнение...';
+
+  try {
+    if (handlers) {
+      // Event-driven mode: evaluate, capture return, run via scheduler
+      const fullCode = `${bindings}\n\n${userCode}`;
+      const fn = new Function('runtime', fullCode);
+      const reg = await fn(runtime);
+      if (reg && (reg.flags || reg.broadcasts)) {
+        runtime.scheduler.register(reg);
+        await runtime.scheduler.start();
+      }
+      statusLabel.textContent = '✓ Все потоки завершены';
+    } else {
+      // Plain mode (no hat blocks)
+      const wrappedCode = `${bindings}\n\n(async () => {\n${userCode}\n})();`;
+      const fn = new Function('runtime', wrappedCode);
+      await fn(runtime);
+      statusLabel.textContent = '✓ Завершено';
+    }
+  } catch (e) {
+    consoleEl.innerHTML += `<div class="msg-error">[error] ${e.message}</div>`;
+    statusLabel.textContent = `✗ Ошибка: ${e.message}`;
+  } finally {
+    abortController = null;
+    document.getElementById('btn-run').textContent = '▶ Запустить';
+  }
+}
+
+function stopCode() {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  runtime.scheduler.stop();
+  document.getElementById('btn-run').textContent = '▶ Запустить';
+  statusLabel.textContent = '■ Остановлено';
+  consoleEl.innerHTML += '<div class="msg-info">[info] остановлено</div>';
+}
+
+// ── QWebChannel bridge (Python ↔ JS) ────
+if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+  try {
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+      window.bridge = channel.objects.bridge;
+      console.log('QWebChannel: connected to Python');
+    });
+  } catch(e) {
+    console.warn('QWebChannel init failed:', e);
+  }
+}
+
+/** Принять код из Python (JSON-блоки, raw JS или BASE64:.sb3) и выполнить. */
+window.receiveFromPython = function(code) {
+  if (typeof code !== 'string' || !code.trim()) return;
+  stopCode();
+
+  // ── .sb3 через Base64 ──
+  if (code.startsWith('BASE64:')) {
+    // Полный сброс сцены перед загрузкой нового проекта
+    stopCode();
+    runtime.penClear();
+    runtime.x = 0; runtime.y = 0; runtime.direction = 90; runtime.visible = true;
+    runtime.penIsDown = false; runtime.penColor = '#000000'; runtime.penSize = 2;
+    runtime.scheduler.reset();
+    consoleEl.innerHTML = '';
+    statusLabel.textContent = '⏳ Распаковка .sb3 из Base64...';
+    try {
+      const binaryStr = atob(b64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      JSZip.loadAsync(bytes).then(zip => {
+        const projFile = zip.file('project.json');
+        if (!projFile) throw new Error('project.json не найден в .sb3');
+        return projFile.async('string');
+      }).then(projStr => {
+        const project = JSON.parse(projStr);
+        const target = project.targets.find(t => !t.isStage) || project.targets[0];
+        if (!target) throw new Error('Нет спрайтов в проекте');
+        const blocks = convertSb3Blocks(target.blocks);
+        loadJSON(JSON.stringify(blocks));
+        statusLabel.textContent = `✓ .sb3 из Python → спрайт «${target.name}» (${blocks.length} блоков), автозапуск...`;
+        setTimeout(runCode, 200);
+      }).catch(err => {
+        statusLabel.textContent = `✗ Ошибка .sb3: ${err.message}`;
+        consoleEl.innerHTML += `<div class="msg-error">[error] .sb3: ${err.message}</div>`;
+      });
+    } catch (e) {
+      statusLabel.textContent = `✗ Ошибка Base64: ${e.message}`;
+    }
+    return;
+  }
+
+  // ── JSON-блоки ──
+  try {
+    JSON.parse(code);
+    loadJSON(code);
+    statusLabel.textContent = '✓ JSON-блоки получены из Python, автозапуск...';
+    setTimeout(runCode, 200);
+    return;
+  } catch {}
+
+  // ── Сырой JS ──
+  editor.value = code;
+  editor.dataset.handlers = '';
+  statusLabel.textContent = '✓ JS-код получен из Python, автозапуск...';
+  setTimeout(runCode, 200);
+};
+
+/** Принять snapshot-шаги из Python (BackendAlgorithmTracer / SQLWhereParser). */
+window.receiveSnapshots = function(jsonStr, mode) {
+  if (typeof jsonStr !== 'string' || !jsonStr.trim()) return;
+  mode = mode || 'algo';
+  try {
+    const steps = JSON.parse(jsonStr);
+    if (!Array.isArray(steps) || steps.length === 0) {
+      statusLabel.textContent = '✗ Пустой массив шагов';
+      return;
+    }
+    player.load(steps);
+    setMode(mode === 'sql' ? 'sql' : 'algo');
+    player.next();
+    statusLabel.textContent = `✓ Получено ${steps.length} шагов из Python (${mode})`;
+    // Лог в консоль
+    consoleEl.innerHTML += `<div class="msg-info">[info] Получено ${steps.length} шагов визуализации из Python</div>`;
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  } catch (e) {
+    statusLabel.textContent = `✗ Ошибка парсинга шагов: ${e.message}`;
+  }
+};
+
+// ── UI wiring ─────────────────────────────
+document.getElementById('btn-run').addEventListener('click', runCode);
+document.getElementById('btn-stop').addEventListener('click', stopCode);
+document.getElementById('btn-pen-clear').addEventListener('click', () => { runtime.penClear(); });
+
+btnConnect.addEventListener('click', async () => {
+  if (runtime.hardwareConnected) {
+    await runtime.disconnectHardware();
+    btnConnect.classList.remove('connected');
+    btnConnect.textContent = '🔌 Подключить плату';
+  } else {
+    await runtime.connectHardware();
+    if (runtime.hardwareConnected) {
+      btnConnect.classList.add('connected');
+      btnConnect.textContent = '🔌 Отключить плату';
+    }
+  }
+});
+
+document.getElementById('btn-open-sb3').addEventListener('click', () => {
+  document.getElementById('sb3-input').click();
+});
+
+document.getElementById('sb3-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  statusLabel.textContent = '⏳ Загрузка .sb3...';
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const projFile = zip.file('project.json');
+    if (!projFile) throw new Error('project.json не найден в архиве');
+    const project = JSON.parse(await projFile.async('string'));
+    const target = project.targets.find(t => !t.isStage) || project.targets[0];
+    if (!target) throw new Error('Нет спрайтов в проекте');
+    const blocks = convertSb3Blocks(target.blocks);
+    loadJSON(JSON.stringify(blocks));
+    statusLabel.textContent = `✓ ${file.name} → спрайт «${target.name}» (${blocks.length} блоков)`;
+  } catch (err) {
+    statusLabel.textContent = `✗ Ошибка .sb3: ${err.message}`;
+    consoleEl.innerHTML += `<div class="msg-error">[error] .sb3: ${err.message}</div>`;
+  }
+  e.target.value = '';
+});
+
+// ── console tabs ──────────────────────────
+document.querySelectorAll('#console-head .tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('#console-head .tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const filter = tab.dataset.tab;
+    Array.from(consoleEl.children).forEach(el => {
+      if (filter === 'log') el.style.display = '';
+      else el.style.display = el.classList.contains('msg-hardware') || el.classList.contains('msg-rx') || el.classList.contains('msg-tx') || el.classList.contains('msg-warn') ? '' : 'none';
+    });
+  });
+});
+
+// ── Demo JSON (Events + Pen + Electronics) ─
+const demoJSON = JSON.stringify([
+  {
+    "type": "event_when_flag_clicked",
+    "children": [
+      { "type": "pen_set_color", "color": "#E53935" },
+      { "type": "pen_set_size", "size": 3 },
+      { "type": "pen_down" },
+      { "type": "control_forever", "children": [
+        { "type": "motion_move", "steps": 8 },
+        { "type": "motion_turn_right", "degrees": 5 },
+        { "type": "control_wait", "secs": 0.02 }
+      ]}
+    ]
+  },
+  {
+    "type": "event_when_broadcast_received",
+    "broadcast": "близко",
+    "children": [
+      { "type": "arduino_digital_write", "pin": 13, "value": "HIGH" },
+      { "type": "pen_set_color", "color": "#4CAF50" },
+      { "type": "pen_set_size", "size": 5 },
+      { "type": "control_wait", "secs": 0.5 },
+      { "type": "arduino_digital_write", "pin": 13, "value": "LOW" }
+    ]
+  },
+  {
+    "type": "event_when_broadcast_received",
+    "broadcast": "далеко",
+    "children": [
+      { "type": "arduino_digital_write", "pin": 13, "value": "LOW" },
+      { "type": "pen_set_color", "color": "#E53935" },
+      { "type": "pen_set_size", "size": 3 },
+      { "type": "control_wait", "secs": 0.5 }
+    ]
+  }
+], null, 2);
+
+window.demoJSON = demoJSON;
+loadJSON(demoJSON);
+
+window.runtime = runtime;
+window.transpileProject = transpileProject;
+window.loadJSON = loadJSON;
+
+// ── C++ / Arduino Ino Transpiler ─────────────────
+function cppExpr(block) {
+  if (typeof block !== 'object' || block === null) return String(block ?? '0');
+  const t = block.type;
+  switch (t) {
+    case 'operator_add':     return `(${cppExpr(block.a)} + ${cppExpr(block.b)})`;
+    case 'operator_subtract':return `(${cppExpr(block.a)} - ${cppExpr(block.b)})`;
+    case 'operator_multiply':return `(${cppExpr(block.a)} * ${cppExpr(block.b)})`;
+    case 'operator_divide':  return `(${cppExpr(block.a)} / ${cppExpr(block.b)})`;
+    case 'operator_gt':      return `(${cppExpr(block.a)} > ${cppExpr(block.b)})`;
+    case 'operator_lt':      return `(${cppExpr(block.a)} < ${cppExpr(block.b)})`;
+    case 'operator_equals':  return `(${cppExpr(block.a)} == ${cppExpr(block.b)})`;
+    case 'operator_and':     return `(${cppExpr(block.a)} && ${cppExpr(block.b)})`;
+    case 'operator_or':      return `(${cppExpr(block.a)} || ${cppExpr(block.b)})`;
+    case 'operator_not':     return `!(${cppExpr(block.operand)})`;
+    case 'operator_random':  return `random(${cppExpr(block.from)}, ${cppExpr(block.to)})`;
+    case 'operator_mod':     return `(${cppExpr(block.a)} % ${cppExpr(block.b)})`;
+    case 'operator_round':   return `round(${cppExpr(block.num)})`;
+    case 'operator_join':    return `String(${cppExpr(block.a)}) + String(${cppExpr(block.b)})`;
+    case 'operator_length':  return `String(${cppExpr(block.string)}).length()`;
+    case 'variable_get':     return block.name;
+    case 'arduino_digital_read':  return `digitalRead(${block.pin})`;
+    case 'arduino_analog_read':   return `analogRead(${block.pin})`;
+    case 'sensor_distance':  return `getDistance(${block.trigger_pin}, ${block.echo_pin})`;
+    case 'sensor_light':     return `getLightValue(${block.pin})`;
+    default: return String(block.value ?? '0');
+  }
+}
+
+function cppStmt(block, indent) {
+  indent = indent || 0;
+  const pad = '  '.repeat(indent);
+  const t = block.type;
+  switch (t) {
+    case 'control_repeat': {
+      const body = cppStmts(block.children || [], indent + 1);
+      return `${pad}for (int i = 0; i < ${block.times}; i++) {\n${body}\n${pad}}`;
+    }
+    case 'control_repeat_until': {
+      const cond = cppExpr(block.condition);
+      const body = cppStmts(block.children || [], indent + 1);
+      return `${pad}while (!(${cond})) {\n${body}\n${pad}}`;
+    }
+    case 'control_forever': {
+      const body = cppStmts(block.children || [], indent + 1);
+      return `${pad}while (true) {\n${body}\n${pad}}`;
+    }
+    case 'control_if': {
+      const cond = cppExpr(block.condition);
+      const body = cppStmts(block.children || [], indent + 1);
+      return `${pad}if (${cond}) {\n${body}\n${pad}}`;
+    }
+    case 'control_if_else': {
+      const cond = cppExpr(block.condition);
+      const bt = cppStmts(block.children || [], indent + 1);
+      const bf = cppStmts(block.else_children || [], indent + 1);
+      return `${pad}if (${cond}) {\n${bt}\n${pad}} else {\n${bf}\n${pad}}`;
+    }
+    case 'control_wait': {
+      const secs = block.secs;
+      const ms = typeof secs === 'number' ? Math.round(secs * 1000) : `((int)(${cppExpr(secs)} * 1000))`;
+      return `${pad}delay(${ms});`;
+    }
+    case 'arduino_set_pin_mode': {
+      const mode = typeof block.mode === 'object' ? cppExpr(block.mode) : (block.mode || 'OUTPUT');
+      return `${pad}pinMode(${block.pin}, ${mode});`;
+    }
+    case 'arduino_digital_write': {
+      const val = typeof block.value === 'object' ? cppExpr(block.value) : (block.value || 'HIGH');
+      return `${pad}digitalWrite(${block.pin}, ${val});`;
+    }
+    case 'arduino_analog_write':
+      return `${pad}analogWrite(${block.pin}, ${cppExpr(block.value)});`;
+    case 'variable_set':
+      return `${pad}${block.name} = ${cppExpr(block.value)};`;
+    case 'variable_change':
+      return `${pad}${block.name} += ${cppExpr(block.value)};`;
+    default:
+      return `${pad}// unknown: ${t}`;
+  }
+}
+
+function cppStmts(blocks, indent) {
+  return (blocks || []).map(b => cppStmt(b, indent)).join('\n');
+}
+
+function transpileToIno(blocks) {
+  blocks = Array.isArray(blocks) ? blocks : [blocks];
+  const setupLines = [];
+  const loopLines = [];
+
+  for (const b of blocks) {
+    const t = b.type;
+    if (t === 'arduino_set_pin_mode') {
+      setupLines.push(cppStmt(b, 1));
+    } else if (t === 'control_forever') {
+      loopLines.push(cppStmt(b, 1));
+    } else {
+      setupLines.push(cppStmt(b, 1));
+    }
+  }
+
+  const setupBody = setupLines.length ? setupLines.join('\n') : '  // инициализация';
+  const loopBody = loopLines.length ? loopLines.join('\n') : '  // основной цикл';
+
+  return `// Автоматически сгенерировано из Scratch JSON
+// Скомпилировано в скетч Arduino
+
+void setup() {
+${setupBody}
+}
+
+void loop() {
+${loopBody}
+}
+`;
+}
+
+// ── C++ overlay ──────────────────────────
+(function() {
+  const overlay = document.createElement('div');
+  overlay.id = 'cpp-overlay';
+  overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:#1e1e1e;border:1px solid #444;border-radius:6px;width:80%;max-width:800px;max-height:80vh;display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #333">
+        <span style="color:#4FC3F7;font-weight:bold">⚙ Arduino .ino скетч</span>
+        <button id="btn-cpp-close" style="background:#c53030;color:#fff;border:none;padding:4px 12px;border-radius:3px;cursor:pointer">✕ Закрыть</button>
+      </div>
+      <textarea id="cpp-output" readonly style="flex:1;min-height:300px;background:#1e1e1e;color:#d4d4d4;border:none;outline:none;resize:none;padding:12px 16px;font-family:inherit;font-size:13px;line-height:1.5;tab-size:2;-moz-tab-size:2"></textarea>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  document.getElementById('btn-cpp-close').addEventListener('click', () => {
+    overlay.style.display = 'none';
+  });
+
+  const btnCpp = document.getElementById('btn-cpp');
+  btnCpp.addEventListener('click', () => {
+    let blocks;
+    try {
+      blocks = JSON.parse(editor.value);
+    } catch {
+      statusLabel.textContent = '✗ Ошибка: редактор должен содержать JSON блоков';
+      return;
+    }
+    try {
+      const ino = transpileToIno(blocks);
+      document.getElementById('cpp-output').value = ino;
+      overlay.style.display = 'flex';
+      statusLabel.textContent = '✓ .ino скетч сгенерирован';
+    } catch (e) {
+      statusLabel.textContent = `✗ Ошибка генерации: ${e.message}`;
+    }
+  });
+})();
+</script>
+</body>
+</html>

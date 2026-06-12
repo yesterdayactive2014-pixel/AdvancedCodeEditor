@@ -1,0 +1,38 @@
+[
+  {
+    "epoch": 1,
+    "stage": "code",
+    "loss": 3.2517,
+    "ckpt": "AlanTrain/models\\alan_ep1_code.pt"
+  },
+  {
+    "epoch": 2,
+    "stage": "code",
+    "loss": 2.2648,
+    "ckpt": "AlanTrain/models\\alan_ep2_code.pt"
+  },
+  {
+    "epoch": 3,
+    "stage": "chat",
+    "loss": 3.5158,
+    "ckpt": "AlanTrain/models\\alan_ep3_chat.pt"
+  },
+  {
+    "epoch": 4,
+    "stage": "chat",
+    "loss": 3.275,
+    "ckpt": "AlanTrain/models\\alan_ep4_chat.pt"
+  },
+  {
+    "epoch": 5,
+    "stage": "full",
+    "loss": 2.034,
+    "ckpt": "AlanTrain/models\\alan_ep5_full.pt"
+  },
+  {
+    "epoch": 6,
+    "stage": "full",
+    "loss": 1.8265,
+    "ckpt": "AlanTrain/models\\alan_ep6_full.pt"
+  }
+]

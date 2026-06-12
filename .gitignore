@@ -1,0 +1,10 @@
+dist/
+build/
+*.pyc
+__pycache__/
+*.pt
+*.log
+*.zip
+ollama/
+installer/
+.DS_Store
