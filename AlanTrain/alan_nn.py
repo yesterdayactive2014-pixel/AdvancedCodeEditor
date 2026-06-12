@@ -856,20 +856,21 @@ class AlanPanel(QWidget):
             return text.replace('\n', '<br>')
         parts = []
         last = 0
-        for m in re.finditer(r'```(\w*)\n(.*?)```', text, re.DOTALL):
+        for m in re.finditer(r'```(\w*)\r?\n(.*?)```', text, re.DOTALL):
             parts.append(text[last:m.start()].replace('\n', '<br>'))
             lang = m.group(1) or 'text'
             code = m.group(2)
             highlighted = self._highlight_code(code, lang)
             lang_upper = lang.upper() if lang else 'CODE'
             block = (
-                f'<table width="100%" cellpadding="0" cellspacing="0" '
-                f'style="border:1px solid #3c3c3c; margin:8px 0; background:#1e1e1e;">'
-                f'<tr><td style="background:#2d2d2d; padding:4px 10px; '
-                f'font-size:11px; color:#858585; border-bottom:1px solid #3c3c3c;">'
+                f'<table border="1" bordercolor="#3c3c3c" cellpadding="0" '
+                f'cellspacing="0" width="100%" style="margin:8px 0;">'
+                f'<tr><td bgcolor="#2d2d2d" style="padding:4px 10px; '
+                f'font-size:11px; color:#858585;">'
                 f'📄 {lang_upper}</td></tr>'
-                f'<tr><td><pre style="padding:10px; margin:0; font-size:12px; '
-                f'line-height:1.4; overflow-x:auto;">{highlighted}</pre>'
+                f'<tr><td bgcolor="#1e1e1e" style="padding:0;">'
+                f'<pre style="padding:10px; margin:0; font-size:12px; '
+                f'line-height:1.4;">{highlighted}</pre>'
                 f'</td></tr></table>'
             )
             parts.append(block)
@@ -885,9 +886,8 @@ class AlanPanel(QWidget):
         if display:
             formatted = self._format_code_blocks(display)
             self.chat.append(
-                f'<div style="margin-bottom:8px;">'
-                f'<span style="color:#c586c0;"><b>Alan:</b></span> '
-                f'{formatted}</div>')
+                f'<span style="color:#c586c0;"><b>Alan:</b></span><br>'
+                f'{formatted}')
         self.chat.ensureCursorVisible()
         self.history.append(("user", self._last_query))
         self.history.append(("alan", text))
