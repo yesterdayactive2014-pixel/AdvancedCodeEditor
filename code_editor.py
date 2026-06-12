@@ -2785,6 +2785,41 @@ class OrionHighlighter(QSyntaxHighlighter):
                 self.setFormat(match.start(), match.end() - match.start(), fmt)
 
 
+class ScratchHighlighter(QSyntaxHighlighter):
+    """Подсветка Scratch JSON-блоков (opcode, числа, строки, ключи)."""
+
+    OPCODE_PATTERN = re.compile(r'"(motion_|looks_|control_|event_|operator_|data_|procedures_|pen_|arduino_|sensor_)\w+"')
+    KEY_PATTERN = re.compile(r'"(opcode|inputs|fields|next|parent|topLevel|children|type|x|y|value|name|broadcast|message|costume|color|size|pin|mode|trigger_pin|echo_pin)"')
+    STRING_PATTERN = re.compile(r'"[^"\\]*(\\.[^"\\]*)*"')
+    NUMBER_PATTERN = re.compile(r'\b-?\d+(\.\d+)?\b')
+    COMMENT_PATTERN = re.compile(r'//[^\n]*|#[^\n]*')
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.rules = []
+        fmtOp = QTextCharFormat()
+        fmtOp.setForeground(QColor('#569cd6'))
+        self.rules.append((self.OPCODE_PATTERN, fmtOp))
+        fmtKey = QTextCharFormat()
+        fmtKey.setForeground(QColor('#9cdcfe'))
+        self.rules.append((self.KEY_PATTERN, fmtKey))
+        fmtStr = QTextCharFormat()
+        fmtStr.setForeground(QColor('#ce9178'))
+        self.rules.append((self.STRING_PATTERN, fmtStr))
+        fmtNum = QTextCharFormat()
+        fmtNum.setForeground(QColor('#b5cea8'))
+        self.rules.append((self.NUMBER_PATTERN, fmtNum))
+        fmtCmt = QTextCharFormat()
+        fmtCmt.setForeground(QColor('#6a9955'))
+        fmtCmt.setFontItalic(True)
+        self.rules.append((self.COMMENT_PATTERN, fmtCmt))
+
+    def highlightBlock(self, text):
+        for pattern, fmt in self.rules:
+            for match in pattern.finditer(text):
+                self.setFormat(match.start(), match.end() - match.start(), fmt)
+
+
 class OrionCompiler:
     """Компилятор языка OrionScript (.os) в исполняемый JavaScript.
 
@@ -5078,7 +5113,15 @@ class CodeEditorApp(QMainWindow):
             editor.highlighter.rehighlight()
             return
 
-        if isinstance(editor.highlighter, (FirebaseRulesHighlighter, OrionHighlighter)):
+        if lang == 'Scratch':
+            if not isinstance(editor.highlighter, ScratchHighlighter):
+                old = editor.highlighter
+                editor.highlighter = ScratchHighlighter(editor.document())
+                old.setDocument(None)
+            editor.highlighter.rehighlight()
+            return
+
+        if isinstance(editor.highlighter, (FirebaseRulesHighlighter, OrionHighlighter, ScratchHighlighter)):
             old = editor.highlighter
             editor.highlighter = PygmentsHighlighter(editor.document())
             old.setDocument(None)
