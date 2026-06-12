@@ -13,6 +13,14 @@ try:
 except ImportError:
     HAVE_TORCH = False
 
+try:
+    from pygments import highlight as _pygmentize
+    from pygments.lexers import get_lexer_by_name, guess_lexer
+    from pygments.formatters import HtmlFormatter
+    HAVE_PYGMENTS = True
+except ImportError:
+    HAVE_PYGMENTS = False
+
 from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QLineEdit,
@@ -419,18 +427,30 @@ class LlamaWorker(QThread):
         "Если пользователь не здоровается — не приветствуй, сразу к делу.\n\n"
         "Ты эксперт по языку OrionScript (.os) — синтаксису для анимаций, "
         "железа, звука и SQL-визуализации на Canvas.\n\n"
-        "--- СТРУКТУРА ---\n"
-        "<orion> <obj> </obj> </orion> — кадр анимации\n"
-        "<sstm> </sstm> — железо\n"
-        "<snd> </snd> — звук\n"
-        "<dspl> </dspl> — дисплей\n"
-        "<db> </db> — SQL\n\n"
+        "--- СТРУКТУРА И КАДРЫ ---\n"
+        "Каждый <orion>...<\\/orion> — один кадр анимации.\n"
+        "Несколько <orion> блоков подряд = последовательность кадров.\n"
+        "Пустая строка между кадрами не нужна — каждый <orion> сам по себе кадр.\n"
+        "Пример (2 кадра):\n"
+        "<orion><obj>clear home say \"Кадр 1\" move 50<\\/obj><\\/orion>\n"
+        "<orion><obj>say \"Кадр 2\" turn 90 move 50<\\/obj><\\/orion>\n\n"
+        "--- ТЕГИ МОДУЛЕЙ ---\n"
+        "<obj> <\\/obj> — спрайт (команды ядра)\n"
+        "<sstm> <\\/sstm> — железо\n"
+        "<snd> <\\/snd> — звук\n"
+        "<dspl> <\\/dspl> — дисплей\n"
+        "<db> <\\/db> — SQL\n\n"
         "--- КОМАНДЫ ЯДРА (внутри <obj>) ---\n"
         "move N | turn N | goto X Y | say \"текст\" | pen 0|1\n"
         "clear | home | hide | show | glide X Y N\n"
         "pensize N | color \"цвет\" | stamp | setx N | sety N | dir N\n"
         "chart | table | tree | llist | highlight | reset\n"
-        "repeat N ... end | if условие ... else\n\n"
+        "repeat N ... end | if условие ... else\n"
+        "ВАЖНО: repeat повторяет команды ВНУТРИ одного кадра. Без скобок {{}}:\n"
+        "  repeat 10\n"
+        "    move 50\n"
+        "    turn 36\n"
+        "  end\n\n"
         "--- ЖЕЛЕЗО (<sstm>) ---\n"
         "wait N | write PIN 0|1 | read PIN | pwm PIN N\n"
         "tone PIN FREQ | notone PIN | servo PIN ANGLE | log текст\n\n"
@@ -442,20 +462,17 @@ class LlamaWorker(QThread):
         "<red> <orange> <yellow> <green> <blue> <purple> <white>\n"
         "<curs> <fat> <line> <big=24> <small=10>\n"
         "Пример: \"<red>Ошибка<-red> <fat>жирный<-fat>\"\n\n"
-        "--- ПРИМЕР ---\n"
-        "<orion>\n"
-        "  <obj>\n"
-        "    clear\n"
-        "    say \"<red>Привет!<-red>\"\n"
+        "--- ПРИМЕР (2 кадра + repeat) ---\n"
+        "<orion><obj>\n"
+        "  repeat 4\n"
         "    move 100\n"
         "    turn 90\n"
-        "  </obj>\n"
-        "  <sstm>\n"
-        "    write 13 1\n"
-        "    wait 0.5\n"
-        "    write 13 0\n"
-        "  </sstm>\n"
-        "</orion>\n\n"
+        "  end\n"
+        "</obj></orion>\n"
+        "<orion><obj>\n"
+        "  say \"Готово!\"\n"
+        "  pen 0\n"
+        "</obj></orion>\n\n"
         "Ты можешь выполнять действия в редакторе:\n"
         '<action type="create_file" path="файл">содержимое</action>\n'
         '<action type="open_file" path="файл" />\n'
@@ -824,13 +841,53 @@ class AlanPanel(QWidget):
             '', text, flags=re.DOTALL)
         return cleaned.strip()
 
+    def _highlight_code(self, code, lang):
+        if not HAVE_PYGMENTS:
+            return code
+        try:
+            lexer = get_lexer_by_name(lang, stripall=True)
+        except Exception:
+            lexer = guess_lexer(code)
+        fmt = HtmlFormatter(style='monokai', noclasses=True, nowrap=True)
+        return _pygmentize(code, lexer, fmt)
+
+    def _format_code_blocks(self, text):
+        if not HAVE_PYGMENTS:
+            return text.replace('\n', '<br>')
+        parts = []
+        last = 0
+        for m in re.finditer(r'```(\w*)\n(.*?)```', text, re.DOTALL):
+            parts.append(text[last:m.start()].replace('\n', '<br>'))
+            lang = m.group(1) or 'text'
+            code = m.group(2)
+            highlighted = self._highlight_code(code, lang)
+            lang_upper = lang.upper() if lang else 'CODE'
+            block = (
+                f'<table width="100%" cellpadding="0" cellspacing="0" '
+                f'style="border:1px solid #3c3c3c; margin:8px 0; background:#1e1e1e;">'
+                f'<tr><td style="background:#2d2d2d; padding:4px 10px; '
+                f'font-size:11px; color:#858585; border-bottom:1px solid #3c3c3c;">'
+                f'📄 {lang_upper}</td></tr>'
+                f'<tr><td><pre style="padding:10px; margin:0; font-size:12px; '
+                f'line-height:1.4; overflow-x:auto;">{highlighted}</pre>'
+                f'</td></tr></table>'
+            )
+            parts.append(block)
+            last = m.end()
+        parts.append(text[last:].replace('\n', '<br>'))
+        return ''.join(parts)
+
     def _on_result(self, text):
         self.progress.hide()
         self.send.setEnabled(True)
         self.input.setEnabled(True)
         display = self._execute_actions(text)
         if display:
-            self.chat.append(f'<span style="color:#c586c0;"><b>Alan:</b></span> {display}')
+            formatted = self._format_code_blocks(display)
+            self.chat.append(
+                f'<div style="margin-bottom:8px;">'
+                f'<span style="color:#c586c0;"><b>Alan:</b></span> '
+                f'{formatted}</div>')
         self.chat.ensureCursorVisible()
         self.history.append(("user", self._last_query))
         self.history.append(("alan", text))

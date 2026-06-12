@@ -4,7 +4,7 @@
 - **Исполняемый файл:** `dist\CodeEditor.exe` (201 МБ, полностью автономный).
 - **Окружение:** PyQt6 6.11.0 + встроенный модуль `PyQt6.QtWebEngineCore/Widgets` (Chromium вшит внутрь).
 - **Поддерживаемые языки:** 46 языков программирования + встроенные инструменты управления.
-- **Интерфейс Scratch:** Вкладка "Scratch IDE" с реальной иконкой (`Scratch3-original.png`) запускает встроенный `QWebEngineView`, полностью изолированный от внешних браузеров.
+- **Интерфейс Scratch:** Кнопка "Scratch IDE" в тулбаре (всегда видна) с иконкой (`Scratch3-original.png`) запускает встроенный `QWebEngineView`, полностью изолированный от внешних браузеров.
 - **Data Bridge:** Двусторонний `QWebChannel`. Передача бинарных проектов `.sb3` упакована в Base64 (`BASE64:`) во избежание порчи ZIP-архива UTF-8 кодировкой.
 - **Фронтенд-компилятор:** JSZip распаковывает `project.json` на лету, маппит 55 опкодов Scratch 3.0, шедулер с `AbortController`.
 - **Number()-коэрция**: математические операторы обёрнуты в `Number()` в обоих транспляторах.
@@ -179,6 +179,16 @@ python -c "from PyQt6.QtWebEngineWidgets import QWebEngineView; from PyQt6.QtSer
 | `AlanPanel(QWidget)` | Панель чата с кнопками, историей, действиями |
 | `AlanEngine` | (устарел) |
 | `AlanWorker` | (устарел) |
+
+### Форматирование кода в чате
+
+Alan подсвечивает блоки кода в ответах с помощью Pygments:
+
+- Блоки ```lang … ``` обнаруживаются и обрабатываются `_format_code_blocks()`
+- `_highlight_code()` использует Pygments `get_lexer_by_name()` с fallback на `guess_lexer()`
+- Стиль: Monokai, `noclasses=True` (inline-стили)
+- Вёрстка: `<table>` с тёмным фоном (`#1e1e1e`), шапкой с названием языка (`📄 PYTHON`) и `<pre>` с кодом
+- Если Pygments не установлен — возвращается чистый текст с заменой `\n` на `<br>`
 
 ### Действия Alan (AI → Editor)
 

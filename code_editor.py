@@ -3894,7 +3894,6 @@ class CodeEditorApp(QMainWindow):
         self.btn_scratch = QPushButton(" Scratch IDE")
         self.btn_scratch.setToolTip("Открыть Scratch→JS транслятор в новой вкладке")
         self.btn_scratch.clicked.connect(self.open_scratch_ide)
-        self.btn_scratch.setVisible(False)
         toolbar_layout.addWidget(self.btn_scratch)
         
         self.btn_send = QPushButton(" Запустить на Сцене")
@@ -5055,9 +5054,8 @@ class CodeEditorApp(QMainWindow):
             self.apply_syntax_highlighting(editor)
             if hasattr(self, 'terminal'):
                 self.terminal.manager.set_language(lang)
-        # Показываем Scratch-кнопки только при выборе языка Scratch
+        # Показываем Scratch-кнопку отправки только при выборе языка Scratch
         is_scratch = self.language_combo.currentText() == "Scratch"
-        self.btn_scratch.setVisible(is_scratch)
         self.btn_send.setVisible(is_scratch)
     
     def apply_syntax_highlighting(self, editor):
