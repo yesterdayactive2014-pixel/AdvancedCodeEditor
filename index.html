@@ -1709,48 +1709,6 @@ document.getElementById('viz-stop').addEventListener('click', () => player.stop(
 document.getElementById('viz-prev').addEventListener('click', () => player.prev());
 document.getElementById('viz-next').addEventListener('click', () => player.next());
 
-// Send code from editor to visualization
-document.getElementById('btn-send-algo').addEventListener('click', () => {
-  try {
-    const data = JSON.parse(editor.value);
-    // Support both direct step arrays and block JSON
-    if (Array.isArray(data)) {
-      if (data.length > 0 && data[0].type) {
-        player.load(data);
-        player.next();
-        statusLabel.textContent = `✓ Загружено ${data.length} шагов визуализации`;
-        return;
-      }
-    }
-    statusLabel.textContent = '✗ Нужен массив snapshot-пакетов (type: array/linkedlist/tree)';
-  } catch {
-    statusLabel.textContent = '✗ Неверный JSON';
-  }
-});
-
-document.getElementById('btn-send-sql').addEventListener('click', () => {
-  try {
-    const data = JSON.parse(editor.value);
-    if (Array.isArray(data) && data.length > 0 && data[0].type === 'sql') {
-      player.load(data);
-      player.next();
-      statusLabel.textContent = `✓ Загружено ${data.length} SQL-шагов`;
-    } else if (data.columns && data.rows) {
-      // Generate steps from table schema
-      const conditionStr = data.where || 'row => true';
-      const fn = new Function('row', `return ${conditionStr};`);
-      const steps = generateSQLSelectSteps(data.columns, data.rows, fn);
-      player.load(steps);
-      player.next();
-      statusLabel.textContent = `✓ SQL: ${data.rows.length} строк, фильтр: ${conditionStr}`;
-    } else {
-      statusLabel.textContent = '✗ Формат: массив sql-шагов или {columns, rows, where}';
-    }
-  } catch {
-    statusLabel.textContent = '✗ Неверный JSON';
-  }
-});
-
 // Add hidden send buttons to toolbar
 (function() {
   const spacer = document.querySelector('#toolbar .spacer');
@@ -1768,6 +1726,46 @@ document.getElementById('btn-send-sql').addEventListener('click', () => {
   btnSql.textContent = '🗄 Выполнить SQL';
   spacer.parentNode.insertBefore(btnSql, spacer);
 })();
+
+// Send code from editor to visualization
+document.getElementById('btn-send-algo')?.addEventListener('click', () => {
+  try {
+    const data = JSON.parse(editor.value);
+    if (Array.isArray(data)) {
+      if (data.length > 0 && data[0].type) {
+        player.load(data);
+        player.next();
+        statusLabel.textContent = `✓ Загружено ${data.length} шагов визуализации`;
+        return;
+      }
+    }
+    statusLabel.textContent = '✗ Нужен массив snapshot-пакетов (type: array/linkedlist/tree)';
+  } catch {
+    statusLabel.textContent = '✗ Неверный JSON';
+  }
+});
+
+document.getElementById('btn-send-sql')?.addEventListener('click', () => {
+  try {
+    const data = JSON.parse(editor.value);
+    if (Array.isArray(data) && data.length > 0 && data[0].type === 'sql') {
+      player.load(data);
+      player.next();
+      statusLabel.textContent = `✓ Загружено ${data.length} SQL-шагов`;
+    } else if (data.columns && data.rows) {
+      const conditionStr = data.where || 'row => true';
+      const fn = new Function('row', `return ${conditionStr};`);
+      const steps = generateSQLSelectSteps(data.columns, data.rows, fn);
+      player.load(steps);
+      player.next();
+      statusLabel.textContent = `✓ SQL: ${data.rows.length} строк, фильтр: ${conditionStr}`;
+    } else {
+      statusLabel.textContent = '✗ Формат: массив sql-шагов или {columns, rows, where}';
+    }
+  } catch {
+    statusLabel.textContent = '✗ Неверный JSON';
+  }
+});
 
 function loadJSON(jsonStr) {
   try {
@@ -1885,6 +1883,7 @@ window.receiveFromPython = function(code) {
     consoleEl.innerHTML = '';
     statusLabel.textContent = '⏳ Распаковка .sb3 из Base64...';
     try {
+      const b64 = code.slice(7);
       const binaryStr = atob(b64);
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) {
