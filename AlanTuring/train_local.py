@@ -238,7 +238,7 @@ class AlanTuringForCausalLM(PreTrainedModel, GenerationMixin):
     config_class = AlanTuringConfig
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
-    _tied_weights_keys = ["lm_head.weight"]
+    _tied_weights_keys = {"lm_head.weight": "model.embed_tokens.weight"}
 
     def __init__(self, config: AlanTuringConfig):
         super().__init__(config)
