@@ -536,7 +536,7 @@ def run_inference(checkpoint_path: str, prompt: str, max_new_tokens: int = 256):
         {"role": "user", "content": prompt},
     ]
     input_text = tokenizer.apply_chat_template(messages, tokenize=False)
-    inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=2048).to(device)
+    inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=2048, return_token_type_ids=False).to(device)
 
     gen_config = GenerationConfig(
         max_new_tokens=max_new_tokens,
