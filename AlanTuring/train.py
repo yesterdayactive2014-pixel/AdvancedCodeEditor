@@ -1,14 +1,18 @@
 """
-Тренировка AlanTuring 200M с нуля на Kaggle T4 16GB.
+Тренировка AlanTuring 200M (поддержка T4 16GB + RTX 4060 Ti 8GB + Ada Lovelace).
 
 Запуск:
-    python train.py --batch-size 8 --grad-accum 4 --max-length 512 --epochs 3
+    python train.py --batch-size 4 --grad-accum 8 --max-length 512 --epochs 3    # 4060 Ti
+    python train.py --batch-size 8 --grad-accum 4 --max-length 512 --epochs 3    # T4
 
+Автоопределение GPU: Ada (CC≥8.0) → bf16 + fused AdamW + compile.
 Использует:
     - Hugging Face Trainer с чекпоинтами (Resume from checkpoint)
-    - Mixed precision (bf16, fallback fp16 если bf16 недоступен)
+    - Mixed precision (bf16 для Ada/T4, fp16 fallback)
     - Gradient checkpointing для экономии VRAM
     - Gradient accumulation для эффективного большого батча
+    - torch.compile на Ada Lovelace (Triton-кеши)
+    - Fused AdamW (+10-15% скорости)
     - Автосохранение каждые N шагов (на случай сбоя Kaggle-сессии)
 """
 import argparse
@@ -57,7 +61,10 @@ def main():
         print(f"GPU: {torch.cuda.get_device_name()}, VRAM: {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
 
     bf16_available = torch.cuda.is_bf16_supported()
-    print(f"bf16 support: {bf16_available}")
+    is_ada = props.major >= 8 if torch.cuda.is_available() else False
+    print(f"bf16 support: {bf16_available}, Ada (CC≥8.0): {is_ada}")
+
+    print("Loading tokenizer...")
 
     print("Loading tokenizer...")
     tokenizer = load_tokenizer()
@@ -116,6 +123,7 @@ def main():
         gradient_checkpointing=True,
         bf16=bf16_available,
         fp16=not bf16_available,
+        optim="adamw_torch_fused" if is_ada else "adamw_torch",
         learning_rate=args.lr,
         warmup_steps=args.warmup,
         lr_scheduler_type="cosine",
@@ -133,9 +141,11 @@ def main():
         remove_unused_columns=True,
         report_to="none",
         ddp_find_unused_parameters=False,
-        dataloader_num_workers=2,
+        dataloader_num_workers=0,
         dataloader_pin_memory=True,
         seed=args.seed,
+        torch_compile=is_ada,
+        torch_compile_backend="inductor",
     )
 
     trainer = Trainer(
