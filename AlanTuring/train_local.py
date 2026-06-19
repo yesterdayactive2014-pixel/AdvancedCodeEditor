@@ -457,7 +457,6 @@ def main():
 
     training_args = TrainingArguments(
         output_dir=args.output_dir,
-        overwrite_output_dir=True,
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=args.grad_accum,
@@ -486,7 +485,7 @@ def main():
         seed=args.seed,
         torch_compile=is_ada,
         torch_compile_backend="inductor",
-        dataloader_prefetch_factor=2,
+        dataloader_prefetch_factor=2 if args.batch_size > 1 else None,
     )
 
     # ── Шаг 6: Trainer ─────────────────────────────────────────
