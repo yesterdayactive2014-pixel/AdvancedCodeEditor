@@ -10,7 +10,7 @@ if not torch.cuda.is_available():
 
 print(f"GPU: {torch.cuda.get_device_name(0)}")
 props = torch.cuda.get_device_properties(0)
-print(f"VRAM: {props.total_mem / 1e9:.1f} GB")
+print(f"VRAM: {props.total_memory / 1e9:.1f} GB")
 print(f"SM count: {props.multi_processor_count}")
 print(f"CC: {props.major}.{props.minor}")
 
@@ -44,7 +44,7 @@ if not bf16_supported:
 model_mb = 195
 opt_mb = model_mb * 2 * 4  # AdamW: 2 states * fp32
 total_est = model_mb + opt_mb + 200  # + activations
-print(f"Mem estimate: ~{total_est} MB / {props.total_mem / 1e9:.1f} GB")
+print(f"Mem estimate: ~{total_est} MB / {props.total_memory / 1e9:.1f} GB")
 
 x = torch.randn(4, 512, 768, device="cuda", dtype=torch.bfloat16)
 print(f"  batch 4, seq 512, hidden 768: {x.numel() * x.element_size() / 1e6:.1f} MB")

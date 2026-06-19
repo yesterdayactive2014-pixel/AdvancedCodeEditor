@@ -401,7 +401,7 @@ def main():
 
     device_name = torch.cuda.get_device_name(0)
     props = torch.cuda.get_device_properties(0)
-    vram = props.total_mem / 1e9
+    vram = props.total_memory / 1e9
     cc = f"{props.major}.{props.minor}"
     is_ada = props.major >= 8
     bf16_ok = torch.cuda.is_bf16_supported()

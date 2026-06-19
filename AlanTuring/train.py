@@ -58,7 +58,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
     if torch.cuda.is_available():
-        print(f"GPU: {torch.cuda.get_device_name()}, VRAM: {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
+        print(f"GPU: {torch.cuda.get_device_name()}, VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 
     bf16_available = torch.cuda.is_bf16_supported()
     is_ada = props.major >= 8 if torch.cuda.is_available() else False
