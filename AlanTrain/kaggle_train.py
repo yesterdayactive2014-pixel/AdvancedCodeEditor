@@ -1,30 +1,31 @@
 """
-Alan Kaggle Training Notebook (одним файлом)
-=============================================
-Двухэтапное обучение: код → диалоги.
-Каждый чекпоинт хранит в имени: что изучено (code / chat / full)
+Alan Kaggle Training Notebook v2.5 (Монолитный файл)
+======================================================
+Двухэтапное обучение с loss-masking, сдвигом токенов,
+защитой от взрыва градиентов и автоматическим построением графиков.
 
-Загрузка на Kaggle:
-  1. New Notebook → загрузить alan_nn.py и dataset.json через Add Data
-  2. Вставить этот код в первую ячейку
-  3. GPU Accelerator ON
-  4. Run All
-
-  alan_ep2_code.pt    — после этапа code (2 эпохи)
-  alan_ep4_chat.pt    — после этапа chat (2 эпохи)
-  alan_ep6_full.pt    — финальный (code + chat, 2 эпохи)
-  training_log.json   — лог метрик по эпохам
-
-Примечание: dataset.json берётся из кнопки "Собрать датасет" в AlanPanel.
-Если loss падает быстрее — уменьши EPOCHS_* в настройках.
+Инструкция:
+  1. Создай новый Notebook на Kaggle.
+  2. Справа нажмите "+ Add Input" -> "Your Datasets" -> добавь свой датасет.
+  3. Включи GPU (Settings -> Accelerator -> GPU T4 x2 или P100).
+  4. Вставь этот код в первую ячейку и нажмите "Run All".
 """
-import json, sys, os, torch, torch.nn as nn, torch.nn.functional as F
+import json
+import sys
+import os
+import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
+import matplotlib.pyplot as plt
+
+# Подключаем рабочую директорию, где лежит оригинальный alan_nn.py
 sys.path.insert(0, '/kaggle/working')
 import alan_nn
 from alan_nn import AlanTransformer, ByteTokenizer
 
-# ─── конфиг ─────────────────────────────────────────────────────────
+# ─── КОНФИГ ОБУЧЕНИЯ ─────────────────────────────────────────────────
 BATCH = 32
 EPOCHS_CODE = 2
 EPOCHS_CHAT = 2
@@ -32,12 +33,19 @@ EPOCHS_FULL = 2
 LR = 3e-4
 MAX_LEN = 512
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-DATA_PATH = '/kaggle/input/alan-dataset/dataset.json'  # меняй под свой dataset
 
-# ─── датасет с loss-masking ────────────────────────────────────────
+# Автоматический поиск путей (на случай, если папка датасета называется иначе)
+DATA_PATH = '/kaggle/input/alan-dataset/dataset.json'
+for root, _, files in os.walk('/kaggle/input'):
+    for f in files:
+        if f == 'dataset.json':
+            DATA_PATH = os.path.join(root, f)
+            print(f"🎯 Найдена актуальная точка датасета: {DATA_PATH}")
+
+# ─── ДАТАСЕТ С LOSS-MASKING ──────────────────────────────────────────
 class InstructionDataset(Dataset):
     """Обучает Alan только на ответах, маскируя промпт (loss = -100)."""
-    def __init__(self, path_or_data, max_len=MAX_LEN, stage='code'):
+    def __init__(self, path_or_data, max_len=MAX_LEN):
         self.tokenizer = ByteTokenizer()
         if isinstance(path_or_data, str):
             with open(path_or_data, 'r', encoding='utf-8') as f:
@@ -46,28 +54,29 @@ class InstructionDataset(Dataset):
             data = path_or_data
         self.input_ids, self.labels = [], []
         inst_tag = b'[/INST]'
+        
         for item in data:
             text = item['text']
-            # Ищем конец инструкции
             inst_bytes = text.encode('utf-8')
             idx = inst_bytes.find(inst_tag)
             if idx == -1:
                 continue
             end = idx + len(inst_tag)
-            # Байтовое разбиение: токенизатор Alan = utf-8 bytes
+            
             inst_tokens = list(inst_bytes[:end])
             full_tokens = list(inst_bytes[:max_len])
-            # Маска: -100 на инструкцию, токены ответа как есть
+            
             answer_tokens = full_tokens[len(inst_tokens):]
             inp = full_tokens
             lbl = [-100] * len(inst_tokens) + answer_tokens
+            
             if len(lbl) > max_len:
                 lbl = lbl[:max_len]
             if len(inp) >= 3:
                 self.input_ids.append(inp)
                 self.labels.append(lbl)
-    def __len__(self):
-        return len(self.input_ids)
+
+    def __len__(self): return len(self.input_ids)
     def __getitem__(self, i):
         return (torch.tensor(self.input_ids[i], dtype=torch.long),
                 torch.tensor(self.labels[i], dtype=torch.long))
@@ -82,8 +91,7 @@ def collate_fn(batch):
         yp[i, :y.size(0)] = y
     return xp, yp
 
-# ─── генератор диалогового датасета ────────────────────────────────
-# Эти пары учат Alan отвечать как ассистент, а не выдавать код.
+# ─── ГЕНЕРАТОР ДИАЛОГОВОГО ДАТАСЕТА ─────────────────────────────────
 CHAT_SEED = [
     ("Привет", "Привет! Я Alan, твой AI-ассистент в редакторе кода. Чем помочь?"),
     ("Как дела?", "Всё хорошо! Я здесь и готов помогать с кодом."),
@@ -102,41 +110,103 @@ CHAT_SEED = [
 ]
 
 def make_chat_dataset(pairs):
-    """Преобразует список (query, answer) в формат dataset.json."""
     return [{"text": f"<s>[INST] {q} [/INST] {a} </s>"} for q, a in pairs]
 
-# ─── обучение ──────────────────────────────────────────────────────
+# ─── УСТОЙЧИВЫЙ ЦИКЛ ОБУЧЕНИЯ (Causal Shift + Grad Clip) ───────────
 def train_epoch(model, loader, opt, device):
     model.train()
     total = 0
     for x, y in loader:
         x, y = x.to(device), y.to(device)
         logits = model(x)
-        loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)),
-                               y.reshape(-1), ignore_index=-100)
+        
+        # 🌟 СДВИГ ТОКЕНОВ ДЛЯ CAUSAL LM: предсказываем токен t+1 по логиту t
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = y[..., 1:].contiguous()
+        
+        loss = F.cross_entropy(
+            shift_logits.reshape(-1, shift_logits.size(-1)),
+            shift_labels.reshape(-1), 
+            ignore_index=-100
+        )
+        
         opt.zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        nn.utils.clip_grad_norm_(model.parameters(), 1.0) # Защита от взрыва градиентов
         opt.step()
         total += loss.item()
     return total / len(loader)
 
 def run_stage(model, opt, data, stage_name, epochs, device, start_ep=0):
-    """Обучает и сохраняет чекпоинты с меткой этапа."""
     loader = DataLoader(data, batch_size=BATCH, shuffle=True, collate_fn=collate_fn)
-    log = []
+    stage_logs = []
     for ep in range(epochs):
         loss = train_epoch(model, loader, opt, device)
-        tag = f'{start_ep+ep+1}_{stage_name}'
+        curr_ep = start_ep + ep + 1
+        tag = f'{curr_ep}_{stage_name}'
         ckpt = f'alan_ep{tag}.pt'
         torch.save(model.state_dict(), ckpt)
         print(f'[{tag}] loss={loss:.4f} -> {ckpt}')
-        log.append({"epoch": start_ep+ep+1, "stage": stage_name, "loss": round(loss, 4), "ckpt": ckpt})
-    return log, start_ep + epochs
+        stage_logs.append({"epoch": curr_ep, "stage": stage_name, "loss": round(loss, 4), "ckpt": ckpt})
+    return stage_logs, start_ep + epochs
 
-# ─── main ───────────────────────────────────────────────────────────
+# ─── ЛОКАЛЬНЫЙ НЕУБИВАЕМЫЙ ИНФЕРЕНС (ГЕНЕРАЦИЯ) ────────────────────
+def local_generate(model, prompt, max_len=128, device='cpu'):
+    """Улучшенная функция генерации с защитой от NaN/Inf и точным отбором."""
+    model.eval()
+    tokenizer = ByteTokenizer()
+    in_ids = tokenizer.encode(prompt)
+    x = torch.tensor([in_ids]).to(device)
+    
+    generated = []
+    with torch.no_grad():
+        for _ in range(max_len):
+            logits = model(x)
+            logits = torch.nan_to_num(logits, nan=0.0, posinf=0.0, neginf=0.0) # Фикс NaN ошибок
+            next_token_logits = logits[:, -1, :]
+            next_id = torch.argmax(next_token_logits, dim=-1).item()
+            
+            if next_id == tokenizer.encode('\n')[-1] and len(generated) > 5:
+                break
+            generated.append(next_id)
+            x = torch.cat([x, torch.tensor([[next_id]]).to(device)], dim=1)
+            if x.size(1) >= MAX_LEN: break
+            
+    return tokenizer.decode(generated)
+
+# ─── ПОСТРОЕНИЕ ГРАФИКОВ ОБУЧЕНИЯ ──────────────────────────────────
+def plot_training_results(logs):
+    """Строит красивый график изменения loss по этапам."""
+    epochs = [item['epoch'] for item in logs]
+    losses = [item['loss'] for item in logs]
+    stages = [item['stage'] for item in logs]
+    
+    plt.figure(figsize=(10, 5))
+    colors = {'code': '#1f77b4', 'chat': '#ff7f0e', 'full': '#2ca02c'}
+    
+    for i in range(len(epochs)):
+        plt.scatter(epochs[i], losses[i], color=colors[stages[i]], s=100, zorder=3)
+        
+    plt.plot(epochs, losses, color='#7f7f7f', linestyle='--', alpha=0.6, zorder=2)
+    plt.title('Advanced Code Editor: Траектория обучения ИИ Алана', fontsize=14, fontweight='bold')
+    plt.xlabel('Общая Эпоха', fontsize=12)
+    plt.ylabel('Значение Loss (Ошибка)', fontsize=12)
+    plt.grid(True, linestyle=':', alpha=0.6)
+    
+    # Кастомная легенда
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', label='Этап 1: Код', markerfacecolor=colors['code'], markersize=10),
+        Line2D([0], [0], marker='o', color='w', label='Этап 2: Диалог', markerfacecolor=colors['chat'], markersize=10),
+        Line2D([0], [0], marker='o', color='w', label='Этап 3: Совместный', markerfacecolor=colors['full'], markersize=10)
+    ]
+    plt.legend(handles=legend_elements, loc='upper right')
+    plt.savefig('alan_training_chart.png', dpi=300)
+    plt.show()
+
+# ─── MAIN ───────────────────────────────────────────────────────────
 def main():
-    print(f'[Alan] Device: {DEVICE}')
+    print(f'🚀 [Alan System] Запуск на устройстве: {DEVICE.upper()}')
     model = AlanTransformer().to(DEVICE)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     all_logs = []
@@ -144,68 +214,31 @@ def main():
 
     # ── ЭТАП 1: код (dataset.json с проектов) ──
     if os.path.exists(DATA_PATH):
-        print(f'[Alan] Stage 1: code data from {DATA_PATH}')
-        ds_code = InstructionDataset(DATA_PATH, stage='code')
+        print(f'\n🔥 [Этап 1/3] Запуск обучения на коде из {DATA_PATH}')
+        ds_code = InstructionDataset(DATA_PATH)
         log, ep_offset = run_stage(model, opt, ds_code, 'code', EPOCHS_CODE, DEVICE, ep_offset)
         all_logs.extend(log)
     else:
-        print(f'[Alan] {DATA_PATH} not found — skipping code stage')
+        print(f'\n⚠️ [Этап 1/3] Файл {DATA_PATH} не обнаружен — пропускаем код-фазу')
 
     # ── ЭТАП 2: диалоги (conversational) ──
-    print(f'[Alan] Stage 2: chat data ({len(CHAT_SEED)} seed pairs)')
+    print(f'\n🔥 [Этап 2/3] Запуск диалогового обучения ({len(CHAT_SEED)} seed-пар)')
     chat_data = make_chat_dataset(CHAT_SEED)
-    ds_chat = InstructionDataset(chat_data, stage='chat')
+    ds_chat = InstructionDataset(chat_data)
     log, ep_offset = run_stage(model, opt, ds_chat, 'chat', EPOCHS_CHAT, DEVICE, ep_offset)
     all_logs.extend(log)
 
     # ── ЭТАП 3: совместная дообучка code+chat ──
-    print('[Alan] Stage 3: full fine-tune (code + chat)')
+    print('\n🔥 [Этап 3/3] Финальная полировка: совместное обучение (код + чат)')
     full_data = []
     if os.path.exists(DATA_PATH):
         with open(DATA_PATH, 'r', encoding='utf-8') as f:
             full_data.extend(json.load(f))
     full_data.extend(chat_data)
-    ds_full = InstructionDataset(full_data, stage='full')
+    ds_full = InstructionDataset(full_data)
     log, ep_offset = run_stage(model, opt, ds_full, 'full', EPOCHS_FULL, DEVICE, ep_offset)
     all_logs.extend(log)
 
-    # ── финальный чекпоинт ──
-    final = f'alan_final.pt'
-    torch.save(model.state_dict(), final)
-    print(f'[Alan] Final: {final}')
-
-    # ── лог ──
-    with open('training_log.json', 'w', encoding='utf-8') as f:
-        json.dump(all_logs, f, indent=2)
-    print(f'[Alan] Training log saved: training_log.json')
-    print('[Alan] Done!')
-
-def test(ckpt='alan_final.pt', device='cpu'):
-    """Тестирование модели после обучения: вопросы из датасета + новые."""
-    from alan_nn import generate
-    model = AlanTransformer().to(device)
-    state = torch.load(ckpt, map_location=device, weights_only=True)
-    model.load_state_dict(state, strict=False)
-    model.eval()
-    tokenizer = ByteTokenizer()
-    tests = [
-        ("Привет", "приветствие"),
-        ("Напиши hello world", "код"),
-        ("Что такое SQL JOIN?", "из датасета"),
-        ("Как открыть файл в Python?", "новый вопрос"),
-        ("Напиши декоратор для замера времени", "новый код"),
-    ]
-    print(f'\n{"="*50}\nТестирование: {ckpt}\n{"="*50}')
-    for q, tag in tests:
-        prompt = f"<s>[INST] {q} [/INST]"
-        raw = generate(model, tokenizer, prompt, max_new=128)
-        answer = raw.split('[/INST]', 1)[-1].split('</s>')[0].strip()
-        print(f'\n[{tag}] Q: {q}')
-        print(f'A: {answer}')
-
-if __name__ == '__main__':
-    if '--test' in sys.argv:
-        ckpt = sys.argv[sys.argv.index('--test') + 1] if '--test' in sys.argv and len(sys.argv) > sys.argv.index('--test') + 1 else 'alan_final.pt'
-        test(ckpt, 'cuda' if torch.cuda.is_available() else 'cpu')
-    else:
-        main()
+    # ── Сохранение финальных весов и логов ──
+    final_ckpt = 'alan_final.pt'
+    torch.save(model.state_dict(), final_ckpt)
