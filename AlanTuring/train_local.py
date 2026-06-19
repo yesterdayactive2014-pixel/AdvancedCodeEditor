@@ -485,7 +485,6 @@ def main():
         seed=args.seed,
         torch_compile=is_ada,
         torch_compile_backend="inductor",
-        dataloader_prefetch_factor=2 if args.batch_size > 1 else None,
     )
 
     # ── Шаг 6: Trainer ─────────────────────────────────────────
