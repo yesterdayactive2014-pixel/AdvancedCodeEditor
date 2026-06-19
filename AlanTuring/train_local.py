@@ -483,8 +483,7 @@ def main():
         dataloader_num_workers=0,
         dataloader_pin_memory=True,
         seed=args.seed,
-        torch_compile=is_ada,
-        torch_compile_backend="inductor",
+        torch_compile=False,
     )
 
     # ── Шаг 6: Trainer ─────────────────────────────────────────
