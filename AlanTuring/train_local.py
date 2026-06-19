@@ -494,7 +494,6 @@ def main():
         args=training_args,
         data_collator=collator,
         train_dataset=dataset,
-        tokenizer=tokenizer,
     )
 
     # ── Шаг 7: Обучение ────────────────────────────────────────
