@@ -261,7 +261,7 @@ class AlanTuringForCausalLM(PreTrainedModel, GenerationMixin):
             loss = F.cross_entropy(
                 shift_logits.view(-1, shift_logits.size(-1)),
                 shift_labels.view(-1),
-                ignore_index=self.config.pad_token_id,
+                ignore_index=-100,
             )
         from transformers.modeling_outputs import CausalLMOutputWithPast
         return CausalLMOutputWithPast(loss=loss, logits=logits)
@@ -360,10 +360,12 @@ class InstructionDataset(Dataset):
         )
         input_ids = enc["input_ids"].squeeze(0)
         attention_mask = enc["attention_mask"].squeeze(0)
+        labels = input_ids.clone()
+        labels[attention_mask == 0] = -100
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
-            "labels": input_ids.clone(),
+            "labels": labels,
         }
 
 
@@ -422,7 +424,7 @@ def main():
     # ── Шаг 3: Создание конфига и модели ───────────────────────
     print("\n[Шаг 3] Инициализация модели ~195M...")
     config = AlanTuringConfig(
-        vocab_size=tokenizer.vocab_size,
+        vocab_size=len(tokenizer) + 200,
         pad_token_id=tokenizer.pad_token_id,
         bos_token_id=tokenizer.bos_token_id or 1,
         eos_token_id=tokenizer.eos_token_id or 2,
