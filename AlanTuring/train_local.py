@@ -29,6 +29,7 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import (
     PreTrainedModel,
     PretrainedConfig,
+    GenerationMixin,
     Trainer,
     TrainingArguments,
     DataCollatorForLanguageModeling,
@@ -140,8 +141,8 @@ class Attention(nn.Module):
         self.num_key_value_groups = self.num_heads // self.num_kv_heads
 
         self.q_proj = nn.Linear(config.hidden_size, config.num_attention_heads * self.head_dim, bias=False)
-        self.k_proj = nn.Linear(config.hidden_size, config.num_kv_heads * self.head_dim, bias=False)
-        self.v_proj = nn.Linear(config.hidden_size, config.num_kv_heads * self.head_dim, bias=False)
+        self.k_proj = nn.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=False)
+        self.v_proj = nn.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=False)
         self.o_proj = nn.Linear(config.num_attention_heads * self.head_dim, config.hidden_size, bias=False)
         self.attn_dropout = nn.Dropout(config.attention_dropout_prob)
 
@@ -233,7 +234,7 @@ class AlanTuringModel(PreTrainedModel):
         return self.norm(x)
 
 
-class AlanTuringForCausalLM(PreTrainedModel):
+class AlanTuringForCausalLM(PreTrainedModel, GenerationMixin):
     config_class = AlanTuringConfig
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
