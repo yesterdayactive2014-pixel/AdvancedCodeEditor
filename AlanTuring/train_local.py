@@ -540,11 +540,8 @@ def run_inference(checkpoint_path: str, prompt: str, max_new_tokens: int = 256):
 
     gen_config = GenerationConfig(
         max_new_tokens=max_new_tokens,
-        temperature=0.7,
-        top_p=0.9,
-        top_k=50,
-        repetition_penalty=1.1,
-        do_sample=True,
+        do_sample=False,
+        repetition_penalty=1.0,
         pad_token_id=tokenizer.pad_token_id,
         eos_token_id=tokenizer.eos_token_id,
     )
