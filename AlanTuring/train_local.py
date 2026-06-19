@@ -35,7 +35,6 @@ from transformers import (
     DataCollatorForLanguageModeling,
     AutoTokenizer,
     set_seed,
-    GenerationConfig,
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -518,8 +517,97 @@ def main():
 
 
 # ═══════════════════════════════════════════════════════════════
-# 6. INFERENCE (опционально)
+# 6. INFERENCE — стабильная генерация с защитой от NaN/нулей
 # ═══════════════════════════════════════════════════════════════
+
+
+@torch.no_grad()
+def generate_stable(
+    model: AlanTuringForCausalLM,
+    input_ids: torch.LongTensor,
+    max_new_tokens: int = 256,
+    temperature: float = 0.8,
+    top_k: int = 50,
+    top_p: float = 0.9,
+    repetition_penalty: float = 1.05,
+    pad_token_id: int = 0,
+    eos_token_id: int = 2,
+    eps: float = 1e-7,
+) -> torch.LongTensor:
+    """Кастомная генерация с математической стабилизацией.
+
+    Защиты:
+        1. NaN/Inf → -1e9 (через torch.nan_to_num)
+        2. Epsilon-сглаживание: probs = probs + eps с перенормировкой
+        3. Float32 вычисления для численной устойчивости
+    """
+    model.eval()
+    device = input_ids.device
+    batch_size = input_ids.shape[0]
+    generated = input_ids.clone()
+    past_keys = []
+
+    for _ in range(max_new_tokens):
+        # ── Forward pass ────────────────────────────────────
+        if past_keys:
+            last_token = generated[:, -1:]
+            out = model(last_token)
+        else:
+            out = model(generated)
+
+        logits = out.logits[:, -1, :].float()  # (B, V) в float32
+
+        # ── 1. Repetition penalty ───────────────────────────
+        if repetition_penalty != 1.0:
+            for b in range(batch_size):
+                for tid in generated[b].unique():
+                    if logits[b, tid] < 0:
+                        logits[b, tid] *= repetition_penalty
+                    else:
+                        logits[b, tid] /= repetition_penalty
+
+        # ── 2. Temperature ──────────────────────────────────
+        logits = logits / temperature
+
+        # ── 3. NaN/Inf → -1e9 ───────────────────────────────
+        logits = torch.nan_to_num(logits, nan=-1e9, posinf=-1e9, neginf=-1e9)
+
+        # ── 4. Top-K filtering ──────────────────────────────
+        if top_k > 0:
+            k = min(top_k, logits.size(-1))
+            values, _ = torch.topk(logits, k, dim=-1)
+            threshold = values[:, -1].unsqueeze(-1)
+            logits[logits < threshold] = -float("Inf")
+
+        # ── 5. Softmax → вероятности ─────────────────────────
+        probs = torch.softmax(logits, dim=-1)
+
+        # ── 6. Epsilon-сглаживание ───────────────────────────
+        probs = probs + eps
+        probs = probs / probs.sum(dim=-1, keepdim=True)
+
+        # ── 7. Top-P filtering (Nucleus) ─────────────────────
+        if top_p < 1.0:
+            sorted_probs, sorted_idx = probs.sort(descending=True, dim=-1)
+            cumsum = sorted_probs.cumsum(dim=-1)
+            mask = cumsum - sorted_probs > top_p
+            sorted_probs[mask] = 0.0
+            renormalized = sorted_probs / sorted_probs.sum(dim=-1, keepdim=True).clamp(min=eps)
+
+            probs = torch.zeros_like(probs)
+            probs.scatter_add_(-1, sorted_idx, renormalized)
+
+        # ── 8. Финальная перенормировка ──────────────────────
+        probs = probs / probs.sum(dim=-1, keepdim=True).clamp(min=eps)
+
+        # ── 9. Сэмплирование ──────────────────────────────────
+        next_token = torch.multinomial(probs, num_samples=1)
+        generated = torch.cat([generated, next_token], dim=-1)
+
+        if next_token.item() == eos_token_id:
+            break
+
+    return generated
 
 
 def run_inference(checkpoint_path: str, prompt: str, max_new_tokens: int = 256):
@@ -536,20 +624,22 @@ def run_inference(checkpoint_path: str, prompt: str, max_new_tokens: int = 256):
         {"role": "user", "content": prompt},
     ]
     input_text = tokenizer.apply_chat_template(messages, tokenize=False)
-    inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=2048, return_token_type_ids=False).to(device)
+    inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=2048, return_token_type_ids=False)
+    input_ids = inputs["input_ids"].to(device)
 
-    gen_config = GenerationConfig(
+    output_ids = generate_stable(
+        model,
+        input_ids,
         max_new_tokens=max_new_tokens,
-        do_sample=False,
-        repetition_penalty=1.0,
+        temperature=0.8,
+        top_k=50,
+        top_p=0.9,
+        repetition_penalty=1.05,
         pad_token_id=tokenizer.pad_token_id,
         eos_token_id=tokenizer.eos_token_id,
     )
 
-    with torch.no_grad():
-        output_ids = model.generate(**inputs, generation_config=gen_config)
-
-    response = tokenizer.decode(output_ids[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    response = tokenizer.decode(output_ids[0][input_ids.shape[1]:], skip_special_tokens=True)
     return response.strip()
 
 
