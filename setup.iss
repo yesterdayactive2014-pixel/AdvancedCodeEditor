@@ -1,11 +1,11 @@
-; Advanced Code Editor + Alan AI — Inno Setup
+; Vertex Studio + Lynx AI — Inno Setup
 ; Requires Inno Setup 6+ (https://jrsoftware.org/isdl.php)
 
-#define MyAppName "Advanced Code Editor + Alan AI"
+#define MyAppName "Vertex Studio + Lynx AI"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "AnzerScript"
-#define MyAppURL "https://github.com/anzerscript/alan-code-editor"
-#define MyAppExeName "CodeEditor.exe"
+#define MyAppURL "https://github.com/yesterdayactive2014-pixel/AdvancedCodeEditor"
+#define MyAppExeName "Vela.exe"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
@@ -15,14 +15,14 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}/issues
 AppUpdatesURL={#MyAppURL}/releases
-DefaultDirName={autopf}\CodeEditor
+DefaultDirName={autopf}\Vela
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 ; Windows 7 SP1 and newer
 MinVersion=6.1.7601
 PrivilegesRequired=admin
 OutputDir=installer
-OutputBaseFilename=CodeEditor_Setup_{#MyAppVersion}
+OutputBaseFilename=Vela_Setup_{#MyAppVersion}
 ;SetupIconFile=assets\python-original.svg  ; конвертируйте .svg → .ico для иконки
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra
@@ -39,13 +39,13 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 
 [Files]
 ; Главный исполняемый файл редактора
-Source: "dist\CodeEditor.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\Vela.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Ollama — встроенный движок
 Source: "ollama\ollama.exe"; DestDir: "{app}\ollama"; Flags: ignoreversion
 
-; AlanTrain (скрипты обучения, нейросеть)
-Source: "AlanTrain\*"; DestDir: "{app}\AlanTrain"; Flags: ignoreversion recursesubdirs createallsubdirs
+; LynxTrain (скрипты обучения, нейросеть)
+Source: "LynxTrain\*"; DestDir: "{app}\LynxTrain"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Ресурсы (иконки языков)
 Source: "assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs

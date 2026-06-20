@@ -1,15 +1,15 @@
 @echo off
 chcp 65001 >nul
-title Advanced Code Editor — Сборка установщика
+title Vertex Studio — Сборка установщика
 
 echo ═══════════════════════════════════════════
-echo   Сборка Advanced Code Editor + Alan AI
+echo   Сборка Vertex Studio + Lynx AI
 echo ═══════════════════════════════════════════
 echo.
 
 :: 1. Создаём exe через PyInstaller
-echo [1/4] Сборка CodeEditor.exe...
-call pyinstaller --onefile --windowed --name="CodeEditor" --distpath "dist" --add-data "assets;assets" --add-data "AlanTrain;AlanTrain" --hidden-import PyQt6.QtWebEngineWidgets --hidden-import PyQt6.QtWebChannel --hidden-import PyQt6.QtSerialPort --exclude-module torch --exclude-module torchvision --exclude-module torchaudio code_editor.py
+echo [1/4] Сборка Vela.exe...
+call pyinstaller --onefile --windowed --name="Vela" --distpath "dist" --add-data "assets;assets" --add-data "LynxTrain;LynxTrain" --hidden-import PyQt6.QtWebEngineWidgets --hidden-import PyQt6.QtWebChannel --hidden-import PyQt6.QtSerialPort --exclude-module torch --exclude-module torchvision --exclude-module torchaudio vela.py
 if %errorlevel% neq 0 (
     echo [ОШИБКА] PyInstaller не смог собрать exe
     pause
@@ -51,8 +51,8 @@ echo.
 :: 4. Готово
 echo ───────────────────────────────────────────
 echo   ГОТОВО!
-if exist "installer\CodeEditor_Setup_*.exe" (
-    for %%f in (installer\CodeEditor_Setup_*.exe) do (
+if exist "installer\Vela_Setup_*.exe" (
+    for %%f in (installer\Vela_Setup_*.exe) do (
         echo   Установщик: %%f
     )
 )

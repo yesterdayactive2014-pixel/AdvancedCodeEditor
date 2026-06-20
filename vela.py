@@ -39,17 +39,17 @@ try:
 except ImportError:
     HAVE_WEBENGINE = False
 
-# Alan AI
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'AlanTrain'))
+# Lynx AI
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'LynxTrain'))
 from PyQt6.QtWidgets import QDockWidget
 try:
-    from alan_nn import AlanPanel
-    HAVE_ALAN = True
+    from lynx_nn import LynxPanel
+    HAVE_LYNX = True
 except ImportError:
-    HAVE_ALAN = False
+    HAVE_LYNX = False
 
 try:
-    from alan_nn import HAVE_TORCH
+    from lynx_nn import HAVE_TORCH
 except ImportError:
     HAVE_TORCH = False
 
@@ -369,7 +369,7 @@ class LineNumberArea(QWidget):
         self.editor._paint_line_numbers(event)
 
 
-class CodeEditor(QPlainTextEdit):
+class Vela(QPlainTextEdit):
     """Расширенный текстовый редактор с нумерацией строк и автодополнением"""
     def __init__(self):
         super().__init__()
@@ -3652,7 +3652,7 @@ class DependenciesDialog(QDialog):
 
         deps = [
             ("PyTorch (CPU)", "torch", "https://download.pytorch.org/whl/cpu",
-             "Необходим для работы Alan AI"),
+             "Необходим для работы Lynx AI"),
             ("NumPy", "numpy", "https://pypi.org/project/numpy/",
              "Требуется PyTorch для тензорных операций"),
             ("arduino-cli", "arduino-cli", "https://arduino.github.io/arduino-cli/",
@@ -3792,7 +3792,7 @@ class UpdateChecker(QThread):
     def run(self):
         import urllib.request
         try:
-            req = urllib.request.Request(VERSION_URL, headers={'User-Agent': 'CodeEditor'})
+            req = urllib.request.Request(VERSION_URL, headers={'User-Agent': 'Vela'})
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
             remote = data.get('version', '')
@@ -3818,7 +3818,7 @@ class UpdateChecker(QThread):
         return 0
 
 
-class CodeEditorApp(QMainWindow):
+class VelaApp(QMainWindow):
     """Главное приложение редактора кода"""
     
     SUPPORTED_LANGUAGES = {
@@ -3840,7 +3840,7 @@ class CodeEditorApp(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Advanced Code Editor")
+        self.setWindowTitle("Vertex Studio")
         # размер под экран пользователя
         screen = QApplication.primaryScreen().geometry()
         w = min(1400, screen.width() - 60)
@@ -3853,7 +3853,7 @@ class CodeEditorApp(QMainWindow):
         
         self.init_ui()
         self.load_styles()
-        self._init_alan()
+        self._init_lynx()
         QTimer.singleShot(3000, self._check_updates_silent)
         
     def init_ui(self):
@@ -3969,11 +3969,11 @@ class CodeEditorApp(QMainWindow):
         self.btn_upload.clicked.connect(self.compile_and_upload)
         toolbar_layout.addWidget(self.btn_upload)
         
-        # Alan AI
-        self.btn_alan = QPushButton("🤖 Alan AI")
-        self.btn_alan.setToolTip("Открыть панель Alan AI")
-        self.btn_alan.clicked.connect(self.toggle_alan)
-        toolbar_layout.addWidget(self.btn_alan)
+        # Lynx AI
+        self.btn_lynx = QPushButton("🤖 Lynx AI")
+        self.btn_lynx.setToolTip("Открыть панель Lynx AI")
+        self.btn_lynx.clicked.connect(self.toggle_lynx)
+        toolbar_layout.addWidget(self.btn_lynx)
 
         # Визуализация алгоритмов и SQL
         toolbar_layout.addWidget(QLabel("  Визуализация:"))
@@ -4180,7 +4180,7 @@ class CodeEditorApp(QMainWindow):
         if answer == QMessageBox.StandardButton.Yes and url:
             import urllib.request
             save_path = os.path.join(tempfile.gettempdir(),
-                f"CodeEditor_Setup_{remote}.exe")
+                f"Vela_Setup_{remote}.exe")
             try:
                 self.statusBar().showMessage(f"Скачиваю {remote}…")
                 urllib.request.urlretrieve(url, save_path)
@@ -4285,7 +4285,7 @@ class CodeEditorApp(QMainWindow):
             self.status_bar.showMessage(f"Создан: {full_path}")
         else:
             # Нет открытой папки — просто открываем вкладку
-            editor = CodeEditor()
+            editor = Vela()
             editor.setPlainText("# OrionScript (.os)\n")
             editor.set_completion_language("OrionScript")
             tab_idx = self.tab_widget.addTab(editor, " new.os")
@@ -4783,7 +4783,7 @@ class CodeEditorApp(QMainWindow):
         
         file_size = os.path.getsize(filepath)
         
-        editor = CodeEditor()
+        editor = Vela()
         editor.setPlainText("Загрузка...")
         
         self.open_files[filepath] = editor
@@ -4858,7 +4858,7 @@ class CodeEditorApp(QMainWindow):
         name, ok2 = QInputDialog.getText(self, "Новый файл", "Имя файла:", text=f"new{ext}")
         if not ok2 or not name:
             return
-        editor = CodeEditor()
+        editor = Vela()
         tab_index = self.tab_widget.addTab(editor, name)
         self.tab_widget.setCurrentIndex(tab_index)
         self.current_file = None
@@ -4949,7 +4949,7 @@ class CodeEditorApp(QMainWindow):
         index = self.tab_widget.currentIndex()
         if index >= 0:
             widget = self.tab_widget.widget(index)
-            if isinstance(widget, CodeEditor):
+            if isinstance(widget, Vela):
                 return widget
         return None
     
@@ -4967,30 +4967,30 @@ class CodeEditorApp(QMainWindow):
                 self.scratch_viewer = None
                 self.scratch_bridge = None
 
-    def _init_alan(self):
-        """Инициализация панели Alan AI"""
-        if not hasattr(self, 'alan_panel'):
-            from alan_nn import AlanPanel, HAVE_TORCH
+    def _init_lynx(self):
+        """Инициализация панели Lynx AI"""
+        if not hasattr(self, 'lynx_panel'):
+            from lynx_nn import LynxPanel, HAVE_TORCH
             if not HAVE_TORCH:
                 import torch
                 import torch.nn
                 import torch.nn.functional as F
-        self.alan_dock = QDockWidget("🤖 Alan AI", self)
-        self.alan_dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea |
+        self.lynx_dock = QDockWidget("🤖 Lynx AI", self)
+        self.lynx_dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea |
                                         Qt.DockWidgetArea.LeftDockWidgetArea)
-        self.alan_panel = AlanPanel(main_app=self)
-        self.alan_dock.setWidget(self.alan_panel)
-        self.alan_dock.setMinimumWidth(350)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.alan_dock)
+        self.lynx_panel = LynxPanel(main_app=self)
+        self.lynx_dock.setWidget(self.lynx_panel)
+        self.lynx_dock.setMinimumWidth(350)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.lynx_dock)
 
-    def toggle_alan(self):
-        """Показать/скрыть панель Alan AI"""
-        if hasattr(self, 'alan_dock'):
-            self.alan_dock.setVisible(not self.alan_dock.isVisible())
+    def toggle_lynx(self):
+        """Показать/скрыть панель Lynx AI"""
+        if hasattr(self, 'lynx_dock'):
+            self.lynx_dock.setVisible(not self.lynx_dock.isVisible())
         else:
-            self._init_alan()
-            if hasattr(self, 'alan_dock'):
-                self.alan_dock.setVisible(True)
+            self._init_lynx()
+            if hasattr(self, 'lynx_dock'):
+                self.lynx_dock.setVisible(True)
 
     def _on_tab_changed(self, index):
         """Обновить язык и путь к файлу при переключении вкладок"""
@@ -5001,11 +5001,11 @@ class CodeEditorApp(QMainWindow):
         for fp, w in self.open_files.items():
             if w is widget:
                 self.current_file = fp
-                if isinstance(widget, CodeEditor):
+                if isinstance(widget, Vela):
                     self.detect_language(fp)
                 break
         # Обновить язык автодополнения и подсветку
-        if isinstance(widget, CodeEditor):
+        if isinstance(widget, Vela):
             lang = self.language_combo.currentText()
             widget.set_completion_language(lang)
             self.apply_syntax_highlighting(widget)
@@ -5250,7 +5250,7 @@ def main():
     if os.path.exists(app_icon_path):
         app.setWindowIcon(QIcon(app_icon_path))
     
-    window = CodeEditorApp()
+    window = VelaApp()
     window.show()
     
     sys.exit(app.exec())

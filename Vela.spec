@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['code_editor.py'],
+    ['vela.py'],
     pathex=[],
     binaries=[],
-    datas=[('assets', 'assets'), ('AlanTrain', 'AlanTrain'), ('index.html', '.')],
+    datas=[('assets', 'assets'), ('LynxTrain', 'LynxTrain'), ('index.html', '.')],
     hiddenimports=['PyQt6.QtWebEngineWidgets', 'PyQt6.QtWebChannel', 'PyQt6.QtSerialPort'],
     hookspath=[],
     hooksconfig={},

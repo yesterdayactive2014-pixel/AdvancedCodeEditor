@@ -1,4 +1,4 @@
-# Advanced Code Editor - PowerShell Builder
+# Vertex Studio - PowerShell Builder
 # Скрипт для создания exe приложения
 
 param(
@@ -7,7 +7,7 @@ param(
 
 Write-Host "`n"
 Write-Host "╔═══════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║    Advanced Code Editor - Создание exe приложения             ║" -ForegroundColor Cyan
+Write-Host "║    Vertex Studio - Создание exe приложения             ║" -ForegroundColor Cyan
 Write-Host "╚═══════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host "`n"
 
@@ -33,8 +33,8 @@ Write-Host "✅ Зависимости установлены" -ForegroundColor 
 Write-Host ""
 
 # Проверка файла
-if (-not (Test-Path "code_editor.py")) {
-    Write-Host "❌ ОШИБКА: Файл code_editor.py не найден!" -ForegroundColor Red
+if (-not (Test-Path "vela.py")) {
+    Write-Host "❌ ОШИБКА: Файл vela.py не найден!" -ForegroundColor Red
     Write-Host "   Убедитесь, что все файлы в одной директории" -ForegroundColor Red
     exit 1
 }
@@ -43,7 +43,7 @@ if (-not (Test-Path "code_editor.py")) {
 Write-Host "🧹 Очистка старых файлов..." -ForegroundColor Yellow
 if (Test-Path "build") { Remove-Item -Recurse -Force "build" -ErrorAction SilentlyContinue }
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" -ErrorAction SilentlyContinue }
-if (Test-Path "code_editor.spec") { Remove-Item "code_editor.spec" -ErrorAction SilentlyContinue }
+if (Test-Path "Vela.spec") { Remove-Item "Vela.spec" -ErrorAction SilentlyContinue }
 Write-Host "✅ Старые файлы удалены" -ForegroundColor Green
 Write-Host ""
 
@@ -55,30 +55,30 @@ Write-Host ""
 pyinstaller `
     --onefile `
     --windowed `
-    --name="CodeEditor" `
+    --name="Vela" `
     --distpath "dist" `
-    code_editor.py 2>&1 | Where-Object { $_ -match "INFO|warning|Creating|Compiling" }
+    vela.py 2>&1 | Where-Object { $_ -match "INFO|warning|Creating|Compiling" }
 
 Write-Host ""
 
 # Проверка результата
-if (Test-Path "dist\CodeEditor.exe") {
+if (Test-Path "dist\Vela.exe") {
     Write-Host "╔═══════════════════════════════════════════════════════════════╗" -ForegroundColor Green
     Write-Host "║                  ✅ УСПЕШНО СОЗДАНО!                         ║" -ForegroundColor Green
     Write-Host "╚═══════════════════════════════════════════════════════════════╝" -ForegroundColor Green
     Write-Host ""
     Write-Host "📁 Файл находится здесь:" -ForegroundColor Cyan
-    Write-Host "   $(Get-Location)\dist\CodeEditor.exe" -ForegroundColor White
+    Write-Host "   $(Get-Location)\dist\Vela.exe" -ForegroundColor White
     Write-Host ""
     
-    $exeSize = (Get-Item "dist\CodeEditor.exe").Length / 1MB
+    $exeSize = (Get-Item "dist\Vela.exe").Length / 1MB
     Write-Host "📊 Размер файла: $([Math]::Round($exeSize, 1)) MB" -ForegroundColor Gray
     Write-Host ""
     
     # Запуск приложения
     $response = Read-Host "🚀 Запустить приложение? (y/n)"
     if ($response -eq "y") {
-        Start-Process "dist\CodeEditor.exe"
+        Start-Process "dist\Vela.exe"
         Write-Host "✅ Приложение запущено!" -ForegroundColor Green
     }
     Write-Host ""
@@ -88,23 +88,23 @@ if (Test-Path "dist\CodeEditor.exe") {
         $zipResponse = Read-Host "📦 Создать zip архив? (y/n)"
         if ($zipResponse -eq "y") {
             Write-Host "   Упаковка в архив..." -ForegroundColor Yellow
-            if (Test-Path "CodeEditor.zip") { Remove-Item "CodeEditor.zip" }
+            if (Test-Path "Vela.zip") { Remove-Item "Vela.zip" }
             
             Add-Type -AssemblyName System.IO.Compression.FileSystem
             [System.IO.Compression.ZipFile]::CreateFromDirectory(
                 "$(Get-Location)\dist",
-                "$(Get-Location)\CodeEditor.zip"
+                "$(Get-Location)\Vela.zip"
             )
             
-            $zipSize = (Get-Item "CodeEditor.zip").Length / 1MB
-            Write-Host "✅ Архив создан: $(Get-Location)\CodeEditor.zip" -ForegroundColor Green
+            $zipSize = (Get-Item "Vela.zip").Length / 1MB
+            Write-Host "✅ Архив создан: $(Get-Location)\Vela.zip" -ForegroundColor Green
             Write-Host "   Размер архива: $([Math]::Round($zipSize, 1)) MB" -ForegroundColor Gray
         }
     }
     
     Write-Host ""
     Write-Host "📝 Что дальше:" -ForegroundColor Cyan
-    Write-Host "   1. CodeEditor.exe - готов к распространению" -ForegroundColor Gray
+    Write-Host "   1. Vela.exe - готов к распространению" -ForegroundColor Gray
     Write-Host "   2. Скопируйте файл на любой компьютер и запустите" -ForegroundColor Gray
     Write-Host "   3. Не требуется установка или зависимости" -ForegroundColor Gray
     Write-Host ""

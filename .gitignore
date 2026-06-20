@@ -8,5 +8,5 @@ __pycache__/
 ollama/
 installer/
 .DS_Store
-AlanTuring/checkpoints/
-AlanTuring/__pycache__/
+Lynx/checkpoints/
+Lynx/__pycache__/

@@ -1,4 +1,4 @@
-# 🔥 Advanced Code Editor - Полнофункциональный редактор кода
+# 🔥 Vertex Studio - Полнофункциональный редактор кода
 
 **Профессиональный кодовый редактор с поддержкой 50+ языков программирования!**
 
@@ -35,7 +35,7 @@
 ### Быстрый способ (1 минута)
 
 1. **Скачайте файлы:**
-   - `code_editor.py`
+   - `vela.py`
    - `requirements.txt`
    - `build.bat` (на Windows)
 
@@ -49,10 +49,10 @@ pip install -r requirements.txt
 pip install pyinstaller
 
 # 2. Запустите приложение (для проверки)
-python code_editor.py
+python vela.py
 
 # 3. Создайте exe
-pyinstaller --onefile --windowed --name="CodeEditor" code_editor.py
+pyinstaller --onefile --windowed --name="Vela" vela.py
 
 # Найдите exe в папке dist/
 ```
@@ -62,9 +62,9 @@ pyinstaller --onefile --windowed --name="CodeEditor" code_editor.py
 
 ### Запуск приложения
 
-**Windows:** Двойной клик на `CodeEditor.exe` (или `python code_editor.py`)
+**Windows:** Двойной клик на `Vela.exe` (или `python vela.py`)
 
-**Mac/Linux:** `python code_editor.py` (требует Python 3.8+)
+**Mac/Linux:** `python vela.py` (требует Python 3.8+)
 
 ### Основные операции
 
@@ -126,8 +126,8 @@ pyinstaller --onefile --windowed --name="CodeEditor" code_editor.py
 ## 📋 Структура файлов
 
 ```
-CodeEditor/
-├── code_editor.py          # Главное приложение
+Vela/
+├── vela.py                # Главное приложение
 ├── requirements.txt        # Зависимости
 ├── build.bat              # Батник для автоматической упаковки
 ├── ИНСТРУКЦИЯ.txt         # Подробная инструкция
@@ -147,7 +147,7 @@ CodeEditor/
 **Способ 2 - Вручную:**
 ```
 pip install pyinstaller
-pyinstaller --onefile --windowed --name="CodeEditor" code_editor.py
+pyinstaller --onefile --windowed --name="Vela" vela.py
 ```
 
 Готовый exe найдётся в папке `dist/`
@@ -157,10 +157,10 @@ pyinstaller --onefile --windowed --name="CodeEditor" code_editor.py
 После создания exe:
 
 ```powershell
-Compress-Archive -Path dist\CodeEditor.exe -DestinationPath CodeEditor.zip
+Compress-Archive -Path dist\Vela.exe -DestinationPath Vela.zip
 ```
 
-Или через обычный архиватор - щелкните правой кнопкой на `dist\CodeEditor.exe` → Отправить → Сжатая папка
+Или через обычный архиватор - щелкните правой кнопкой на `dist\Vela.exe` → Отправить → Сжатая папка
 
 
 ## 🎨 Темы оформления
@@ -206,12 +206,12 @@ pip install --force-reinstall PyQt6
 
 ### "Приложение не запускается"
 - Откройте cmd.exe
-- Перетащите CodeEditor.exe в окно cmd
+- Перетащите Vela.exe в окно cmd
 - Нажмите Enter, чтобы увидеть подробную ошибку
 
 ### "Размер exe слишком большой"
 ```
-pyinstaller --onefile --windowed --strip --name="CodeEditor" code_editor.py
+pyinstaller --onefile --windowed --strip --name="Vela" vela.py
 ```
 
 
@@ -247,10 +247,10 @@ pyinstaller --onefile --windowed --strip --name="CodeEditor" code_editor.py
 
 ## 🎉 Спасибо за использование!
 
-**Advanced Code Editor** - ваш надёжный спутник в разработке!
+**Vertex Studio** - ваш надёжный спутник в разработке!
 
 ---
 
 **Версия:** 1.0  
 **Последнее обновление:** 2024  
-**Разработано на Python + PyQt6**
+**Разработано на Python + PyQt6

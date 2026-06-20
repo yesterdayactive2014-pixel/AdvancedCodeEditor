@@ -4,7 +4,7 @@ cls
 
 echo.
 echo ╔═══════════════════════════════════════════════════════════════╗
-echo ║         Advanced Code Editor - Автоматическая упаковка        ║
+echo ║         Vertex Studio - Автоматическая упаковка        ║
 echo ╚═══════════════════════════════════════════════════════════════╝
 echo.
 
@@ -33,9 +33,9 @@ pip install pyinstaller > nul 2>&1
 echo ✅ Зависимости установлены
 
 REM Проверка существования файла
-if not exist "code_editor.py" (
+if not exist "vela.py" (
     echo.
-    echo ❌ ОШИБКА: Файл code_editor.py не найден!
+    echo ❌ ОШИБКА: Файл vela.py не найден!
     echo    Убедитесь, что все файлы в одной директории
     pause
     exit /b 1
@@ -46,7 +46,7 @@ echo.
 echo 🧹 Очистка старых файлов...
 if exist "build" rmdir /s /q build > nul 2>&1
 if exist "dist" rmdir /s /q dist > nul 2>&1
-if exist "code_editor.spec" del code_editor.spec > nul 2>&1
+if exist "Vela.spec" del Vela.spec > nul 2>&1
 
 echo ✅ Старые файлы удалены
 
@@ -55,33 +55,33 @@ echo.
 echo 📦 Создание exe файла (это может занять 2-5 минут)...
 echo.
 
-pyinstaller --onefile --windowed --name="CodeEditor" ^
-    --distpath "dist" code_editor.py
+pyinstaller --onefile --windowed --name="Vela" ^
+    --distpath "dist" vela.py
 
 REM Проверка результата
-if exist "dist\CodeEditor.exe" (
+if exist "dist\Vela.exe" (
     echo.
     echo ╔═══════════════════════════════════════════════════════════════╗
     echo ║                   ✅ УСПЕШНО СОЗДАНО!                        ║
     echo ╚═══════════════════════════════════════════════════════════════╝
     echo.
     echo 📁 Файл находится здесь:
-    echo    %cd%\dist\CodeEditor.exe
+    echo    %cd%\dist\Vela.exe
     echo.
     echo 🚀 Запустить прямо сейчас? (y/n)
     set /p run="Выбор: "
     if /i "%run%"=="y" (
-        start "" "dist\CodeEditor.exe"
+        start "" "dist\Vela.exe"
     )
     echo.
     echo 📦 Создать zip архив? (y/n)
     set /p zipfile="Выбор: "
     if /i "%zipfile%"=="y" (
-        if exist "CodeEditor.zip" del CodeEditor.zip
+        if exist "Vela.zip" del Vela.zip
         cd dist
-        powershell -Command "Compress-Archive -Path CodeEditor.exe -DestinationPath ..\CodeEditor.zip"
+        powershell -Command "Compress-Archive -Path Vela.exe -DestinationPath ..\Vela.zip"
         cd ..
-        echo ✅ Архив создан: CodeEditor.zip
+        echo ✅ Архив создан: Vela.zip
     )
 ) else (
     echo.
