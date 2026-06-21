@@ -1,4 +1,4 @@
-# alan_nn.py — Alan Neural Engine v2 (трансформер + мультиязычность + датасет)
+# lynx_nn.py — Lynx Neural Engine v2 (трансформер + мультиязычность + датасет)
 # ~530 строк. Free (CPU) / Premium (GPU). Обучение на Google Cloud.
 
 import json, math, os, sys, re, random
@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (
 #  1. КОНФИГУРАЦИЯ
 # ═══════════════════════════════════════════════════════════════════
 
-class AlanConfig:
+class LynxConfig:
     vocab_size = 256
     embed_dim = 256
     num_heads = 8
@@ -94,55 +94,55 @@ def detect_lang(text: str) -> str:
 
 SYSTEM_PROMPTS = {
     'en': (
-        "You are Alan, an AI assistant built into the Advanced Code Editor. "
+        "You are Lynx, an AI assistant built into the Vertex Studio. "
         "Stack: PyQt6 + QWebEngine + QWebChannel + OrionScript. "
         "Be polite, concise, and helpful. When asked for code — provide only code. "
         "When asked a question — explain briefly. Stay in the same language as the user."
     ),
     'ru': (
-        "Ты — Alan, ИИ-ассистент встроенный в Advanced Code Editor. "
+        "Ты — Lynx, ИИ-ассистент встроенный в Vertex Studio. "
         "Стек: PyQt6 + QWebEngine + QWebChannel + OrionScript. "
         "Будь вежливым, кратким и полезным. Если просят код — давай только код. "
         "Если задают вопрос — объясняй коротко. Отвечай на том же языке, что и пользователь."
     ),
     'zh': (
-        "你是Alan，内置于Advanced Code Editor中的AI助手。"
+        "你是Lynx，内置于Vertex Studio中的AI助手。"
         "技术栈: PyQt6 + QWebEngine + QWebChannel + OrionScript。"
         "请礼貌、简洁、有帮助。如果要求代码——只提供代码。"
         "如果问问题——简短解释。用与用户相同的语言回答。"
     ),
     'ja': (
-        "あなたはAlanです。Advanced Code Editorに組み込まれたAIアシスタントです。"
+        "あなたはLynxです。Vertex Studioに組み込まれたAIアシスタントです。"
         "スタック: PyQt6 + QWebEngine + QWebChannel + OrionScript。"
         "丁寧で簡潔に、役立つように振る舞ってください。コードを求められたらコードのみを。"
         "質問には簡潔に説明。ユーザーと同じ言語で応答してください。"
     ),
     'ko': (
-        "당신은 Advanced Code Editor에 내장된 AI 어시스턴트 Alan입니다."
+        "당신은 Vertex Studio에 내장된 AI 어시스턴트 Lynx입니다."
         "스택: PyQt6 + QWebEngine + QWebChannel + OrionScript. "
         "예의 바르고 간결하며 도움이 되도록 행동하세요. 코드를 요청받으면 코드만 제공하세요. "
         "질문을 받으면 짧게 설명하세요. 사용자와 동일한 언어로 응답하세요."
     ),
     'de': (
-        "Du bist Alan, ein KI-Assistent im Advanced Code Editor. "
+        "Du bist Lynx, ein KI-Assistent im Vertex Studio. "
         "Stack: PyQt6 + QWebEngine + QWebChannel + OrionScript. "
         "Sei höflich, präzise und hilfreich. Wenn Code gewünscht wird — nur Code. "
         "Bei Fragen — kurz erklären. Antworte in derselben Sprache wie der Benutzer."
     ),
     'fr': (
-        "Tu es Alan, un assistant IA intégré à l'Advanced Code Editor. "
+        "Tu es Lynx, un assistant IA intégré à l'Vertex Studio. "
         "Stack: PyQt6 + QWebEngine + QWebChannel + OrionScript. "
         "Sois poli, concis et utile. Quand on te demande du code — fournis seulement le code. "
         "Quand on te pose une question — explique brièvement. Réponds dans la même langue que l'utilisateur."
     ),
     'es': (
-        "Eres Alan, un asistente de IA integrado en Advanced Code Editor. "
+        "Eres Lynx, un asistente de IA integrado en Vertex Studio. "
         "Stack: PyQt6 + QWebEngine + QWebChannel + OrionScript. "
         "Sé educado, conciso y útil. Cuando te pidan código — da solo código. "
         "Cuando pregunten — explica brevemente. Responde en el mismo idioma del usuario."
     ),
     'ar': (
-        "أنت Alan، مساعد ذكاء اصطناعي مدمج في Advanced Code Editor. "
+        "أنت Lynx، مساعد ذكاء اصطناعي مدمج في Vertex Studio. "
         "التقنيات: PyQt6 + QWebEngine + QWebChannel + OrionScript. "
         "كن مهذبًا وموجزًا ومفيدًا. عندما يُطلب منك كود — قدم كودًا فقط. "
         "عندما يُطرح عليك سؤال — اشرح بإيجاز. أجب بنفس لغة المستخدم."
@@ -150,15 +150,15 @@ SYSTEM_PROMPTS = {
 }
 
 GREETINGS = {
-    'en': ["Hello! I'm Alan. How can I help?", "Hi there! Ask me anything about code.", "Hey! Ready to help."],
-    'ru': ["Привет! Я Alan. Чем помочь?", "Здравствуй! Спрашивай что угодно о коде.", "Привет! Готов помочь."],
-    'zh': ["你好！我是Alan。有什么可以帮助的吗？", "嗨！请问有什么代码问题？"],
-    'ja': ["こんにちは！Alanです。何かお手伝いしましょうか？", "やあ！コードについて何でも聞いてください。"],
-    'ko': ["안녕하세요! Alan입니다. 무엇을 도와드릴까요?", "안녕! 코드에 대해 뭐든 물어봐."],
-    'de': ["Hallo! Ich bin Alan. Wie kann ich helfen?", "Hi! Frag mich alles über Code."],
-    'fr': ["Bonjour ! Je suis Alan. Comment puis-je aider ?", "Salut ! Demande-moi tout sur le code."],
-    'es': ["¡Hola! Soy Alan. ¿Cómo puedo ayudar?", "¡Hola! Pregúntame cualquier cosa sobre código."],
-    'ar': ["مرحبًا! أنا Alan. كيف يمكنني المساعدة؟", "أهلًا! اسألني أي شيء عن الكود."],
+    'en': ["Hello! I'm Lynx. How can I help?", "Hi there! Ask me anything about code.", "Hey! Ready to help."],
+    'ru': ["Привет! Я Lynx. Чем помочь?", "Здравствуй! Спрашивай что угодно о коде.", "Привет! Готов помочь."],
+    'zh': ["你好！我是Lynx。有什么可以帮助的吗？", "嗨！请问有什么代码问题？"],
+    'ja': ["こんにちは！Lynxです。何かお手伝いしましょうか？", "やあ！コードについて何でも聞いてください。"],
+    'ko': ["안녕하세요! Lynx입니다. 무엇을 도와드릴까요?", "안녕! 코드에 대해 뭐든 물어봐."],
+    'de': ["Hallo! Ich bin Lynx. Wie kann ich helfen?", "Hi! Frag mich alles über Code."],
+    'fr': ["Bonjour ! Je suis Lynx. Comment puis-je aider ?", "Salut ! Demande-moi tout sur le code."],
+    'es': ["¡Hola! Soy Lynx. ¿Cómo puedo ayudar?", "¡Hola! Pregúntame cualquier cosa sobre código."],
+    'ar': ["مرحبًا! أنا Lynx. كيف يمكنني المساعدة؟", "أهلًا! اسألني أي شيء عن الكود."],
 }
 
 class PromptManager:
@@ -232,7 +232,7 @@ class DatasetBuilder:
         data = self.scan(lang)
         with open(output, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        print(f"[Alan] Датасет сохранён: {output} ({len(data)} пар)")
+        print(f"[Lynx] Датасет сохранён: {output} ({len(data)} пар)")
         return data
 
 
@@ -263,7 +263,7 @@ if HAVE_TORCH:
             self.qkv = nn.Linear(dim, dim * 3, bias=False)
             self.proj = nn.Linear(dim, dim, bias=False)
             self.rope = RotaryEmbedding(self.hdim)
-            self.drop = nn.Dropout(AlanConfig.dropout)
+            self.drop = nn.Dropout(LynxConfig.dropout)
         def forward(self, x, mask=None):
             bs, seq, dim = x.shape
             qkv = self.qkv(x).reshape(bs, seq, 3, self.heads, self.hdim)
@@ -279,8 +279,8 @@ if HAVE_TORCH:
     class FF(nn.Module):
         def __init__(self, dim):
             super().__init__()
-            ff = dim * AlanConfig.ff_mult
-            self.net = nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim), nn.Dropout(AlanConfig.dropout))
+            ff = dim * LynxConfig.ff_mult
+            self.net = nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim), nn.Dropout(LynxConfig.dropout))
         def forward(self, x): return self.net(x)
 
     class Block(nn.Module):
@@ -293,11 +293,11 @@ if HAVE_TORCH:
         def forward(self, x, mask=None):
             return self.ff(self.n2(x + self.attn(self.n1(x), mask))) + x
 
-    class AlanTransformer(nn.Module):
+    class LynxTransformer(nn.Module):
         """Decoder-only GPT-like. ~15M params."""
         def __init__(self):
             super().__init__()
-            c = AlanConfig
+            c = LynxConfig
             self.te = nn.Embedding(c.vocab_size, c.embed_dim)
             self.blocks = nn.ModuleList([Block(c.embed_dim, c.num_heads) for _ in range(c.num_layers)])
             self.norm = nn.LayerNorm(c.embed_dim)
@@ -319,7 +319,7 @@ if HAVE_TORCH:
         ids = torch.tensor([tokenizer.encode(prompt)], dtype=torch.long, device=device)
         gen_len = 0
         for _ in range(max_new):
-            inp = ids[:, -AlanConfig.max_seq_len:]
+            inp = ids[:, -LynxConfig.max_seq_len:]
             logits = model(inp)[0, -1, :].float()
             logits = torch.nan_to_num(logits, nan=0.0, posinf=1e4, neginf=-1e4)
             if repetition_penalty > 1.0 and gen_len > 0:
@@ -347,7 +347,7 @@ if HAVE_TORCH:
         text = re.sub(r'\[SYSTEM\].*?\[/SYSTEM\]', '', text, flags=re.DOTALL)
         return text.strip()
 else:
-    AlanTransformer = None
+    LynxTransformer = None
     def generate(*a, **kw):
         raise RuntimeError('PyTorch не установлен. Установи: pip install torch')
 
@@ -356,7 +356,7 @@ else:
 #  8. ДВИЖОК
 # ═══════════════════════════════════════════════════════════════════
 
-class AlanEngine(QObject):
+class LynxEngine(QObject):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
     def __init__(self, weights_path=None):
@@ -367,15 +367,15 @@ class AlanEngine(QObject):
         self.model = None
         self.premium = False
     def load(self, premium=False):
-        if not HAVE_TORCH or AlanTransformer is None:
+        if not HAVE_TORCH or LynxTransformer is None:
             self.error.emit('PyTorch не установлен. Установи: pip install torch')
             return
         has_cuda = torch.cuda.is_available()
-        AlanConfig.device = 'cuda' if has_cuda else 'cpu'
-        AlanConfig.premium = has_cuda
-        self.model = AlanTransformer().to(AlanConfig.device)
+        LynxConfig.device = 'cuda' if has_cuda else 'cpu'
+        LynxConfig.premium = has_cuda
+        self.model = LynxTransformer().to(LynxConfig.device)
         if self.weights_path and os.path.exists(self.weights_path):
-            state = torch.load(self.weights_path, map_location=AlanConfig.device, weights_only=True)
+            state = torch.load(self.weights_path, map_location=LynxConfig.device, weights_only=True)
             self.model.load_state_dict(state, strict=False)
         self.model.eval()
     def ask(self, query: str, max_new=128):
@@ -387,7 +387,7 @@ class AlanEngine(QObject):
             raw = generate(self.model, self.tokenizer, prompt, max_new)
             answer = self.prompter.extract_answer(raw, lang)
             self.prompter.add('user', query)
-            self.prompter.add('alan', answer)
+            self.prompter.add('lynx', answer)
             self.finished.emit(answer)
         except Exception as e:
             self.error.emit(str(e))
@@ -395,7 +395,7 @@ class AlanEngine(QObject):
         return self.prompter.greeting('ru' if self.prompter.history else 'en')
 
 
-class AlanWorker(QThread):
+class LynxWorker(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
     def __init__(self, engine, query, max_new=128):
@@ -409,20 +409,20 @@ class AlanWorker(QThread):
             raw = generate(self.engine.model, self.engine.tokenizer, prompt, self.max_new)
             answer = self.engine.prompter.extract_answer(raw, lang)
             self.engine.prompter.add('user', self.query)
-            self.engine.prompter.add('alan', answer)
+            self.engine.prompter.add('lynx', answer)
             self.finished.emit(answer)
         except Exception as e:
             self.error.emit(str(e))
 
 
 class LlamaWorker(QThread):
-    """QThread для Ollama (llama3:8b) с системным промптом Alan."""
+    """QThread для Ollama (llama3:8b) с системным промптом Lynx."""
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
     SYSTEM_PROMPT = (
-        "Ты — Алан (Alan), русскоязычный ИИ-ассистент, "
-        "встроенный в Advanced Code Editor.\n"
+        "Ты — Lynx, русскоязычный ИИ-ассистент, "
+        "встроенный в Vertex Studio.\n"
         "ОТВЕЧАЙ ТОЛЬКО НА РУССКОМ. Никаких других языков.\n"
         "Если пользователь не здоровается — не приветствуй, сразу к делу.\n\n"
         "Ты эксперт по языку OrionScript (.os) — синтаксису для анимаций, "
@@ -492,7 +492,7 @@ class LlamaWorker(QThread):
         if self.context:
             parts.append(f"Context (текущее состояние редактора):\n{self.context}")
         for role, msg in self.history:
-            label = "User" if role == "user" else "Alan"
+            label = "User" if role == "user" else "Lynx"
             parts.append(f"{label}: {msg}")
         parts.append(f"User: {self.prompt}")
         return "\n".join(parts)
@@ -525,7 +525,7 @@ class LlamaWorker(QThread):
 # ═══════════════════════════════════════════════════════════════════
 
 STYLE = """
-    QWidget#alanRoot { background:#1e1e1e; color:#d4d4d4; font-family:Consolas; font-size:12px; }
+    QWidget#lynxRoot { background:#1e1e1e; color:#d4d4d4; font-family:Consolas; font-size:12px; }
     QTextEdit { background:#252526; border:1px solid #3c3c3c; border-radius:4px; padding:6px; color:#d4d4d4; selection-background:#264f78; }
     QLineEdit { background:#252526; border:1px solid #3c3c3c; border-radius:4px; padding:6px; color:#d4d4d4; }
     QPushButton { background:#0e639c; color:#fff; border:none; border-radius:4px; padding:6px 14px; font-weight:bold; }
@@ -568,10 +568,10 @@ class DownloadWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
-class AlanPanel(QWidget):
+class LynxPanel(QWidget):
     def __init__(self, parent=None, main_app=None):
         super().__init__(parent)
-        self.setObjectName('alanRoot')
+        self.setObjectName('lynxRoot')
         self.setStyleSheet(STYLE)
         self.worker = None
         self.download_worker = None
@@ -584,7 +584,7 @@ class AlanPanel(QWidget):
         layout.setSpacing(6)
 
         hdr = QHBoxLayout()
-        title = QLabel("Alan AI")
+        title = QLabel("Lynx AI")
         title.setStyleSheet("font-size:15px; font-weight:bold; color:#569cd6;")
         self.status = QLabel()
         self.status.setStyleSheet("font-size:11px; color:#858585;")
@@ -633,7 +633,7 @@ class AlanPanel(QWidget):
 
         row = QHBoxLayout()
         self.input = QLineEdit()
-        self.input.setPlaceholderText("Спроси Alan… Ask Alan… 问Alan…")
+        self.input.setPlaceholderText("Спроси Lynx… Ask Lynx… 问Lynx…")
         self.input.returnPressed.connect(self._ask)
         self.send = QPushButton("→"); self.send.setFixedWidth(36)
         self.send.clicked.connect(self._ask)
@@ -649,7 +649,7 @@ class AlanPanel(QWidget):
         def _no_ollama():
             self.status.setText("⚠ Ollama офлайн")
             self.dl_label.setText(
-                "Alan AI не может запуститься, так как Ollama не обнаружена.\n"
+                "Lynx AI не может запуститься, так как Ollama не обнаружена.\n"
                 "Убедитесь, что ollama.exe находится в той же папке, что и редактор,\n"
                 "или установите Ollama вручную: https://ollama.com"
             )
@@ -670,7 +670,7 @@ class AlanPanel(QWidget):
             self.input.setEnabled(False)
             self.send.setEnabled(False)
 
-        self.log("■ Alan запущен. Проверка Ollama…", '#569cd6')
+        self.log("■ Lynx запущен. Проверка Ollama…", '#569cd6')
         try:
             req = urllib.request.Request(
                 'http://127.0.0.1:11434/api/tags',
@@ -681,7 +681,7 @@ class AlanPanel(QWidget):
             models = [m['name'] for m in data.get('models', [])]
             if any('llama' in m for m in models):
                 self.log("■ Ollama llama3:8b — готова к работе", '#6a9955')
-                self.status.setText("⚡ Alan + Llama")
+                self.status.setText("⚡ Lynx + Llama")
             else:
                 self.log("■ Ollama запущена, но модель не найдена", '#ce9178')
                 _no_model()
@@ -711,8 +711,8 @@ class AlanPanel(QWidget):
         self.dl_btn.setText("✅ Модель скачана!")
         self.dl_btn.setEnabled(False)
         self.dl_bar.setValue(100)
-        self.log("■ Модель llama3:8b успешно скачана! Alan готов к работе.", '#6a9955')
-        self.status.setText("⚡ Alan + Llama")
+        self.log("■ Модель llama3:8b успешно скачана! Lynx готов к работе.", '#6a9955')
+        self.status.setText("⚡ Lynx + Llama")
         QTimer.singleShot(1200, self._enable_chat)
 
     def _on_dl_error(self, err_text):
@@ -752,13 +752,13 @@ class AlanPanel(QWidget):
         data = builder.build_json()
         write_train_script()
         self.log(f"■ Датасет сохранён: dataset.json ({len(data)} пар)", '#569cd6')
-        self.log("■ train_alan.py обновлён. Запусти: python AlanTrain/train_alan.py --data AlanTrain/dataset.json --epochs 20 --device cpu", '#569cd6')
-        self.log("■ Для генерации качественного датасета: python AlanTrain/prepare_dataset.py --export-prompt", '#569cd6')
+        self.log("■ train_lynx.py обновлён. Запусти: python LynxTrain/train_lynx.py --data LynxTrain/dataset.json --epochs 20 --device cpu", '#569cd6')
+        self.log("■ Для генерации качественного датасета: python LynxTrain/prepare_dataset.py --export-prompt", '#569cd6')
 
     def _find_project_dir(self):
         p = __file__
         for _ in range(4):
-            if any(os.path.exists(os.path.join(p, f)) for f in ['code_editor.py', 'index.html', 'transpile.py']):
+            if any(os.path.exists(os.path.join(p, f)) for f in ['vela.py', 'index.html', 'transpile.py']):
                 return p
             p = os.path.dirname(p)
         return '.'
@@ -886,7 +886,7 @@ class AlanPanel(QWidget):
         if display:
             formatted = self._format_code_blocks(display)
             self.chat.append(
-                f'<span style="color:#c586c0;"><b>Alan:</b></span><br>'
+                f'<span style="color:#c586c0;"><b>Lynx:</b></span><br>'
                 f'{formatted}')
         self.chat.ensureCursorVisible()
         self.history.append(("user", self._last_query))
@@ -899,7 +899,7 @@ class AlanPanel(QWidget):
         self.progress.hide()
         self.send.setEnabled(True)
         self.input.setEnabled(True)
-        self.chat.append(f'<span style="color:#f85149;"><b>Alan:</b> {err_text}</span>')
+        self.chat.append(f'<span style="color:#f85149;"><b>Lynx:</b> {err_text}</span>')
         self.chat.ensureCursorVisible()
         self.worker = None
 
@@ -931,12 +931,12 @@ class AlanPanel(QWidget):
 #  10. ГЕНЕРАТОР СКРИПТА ОБУЧЕНИЯ
 # ═══════════════════════════════════════════════════════════════════
 
-TRAIN_SCRIPT = '''# train_alan.py — Alan instruction-tuning with loss masking
-# python train_alan.py --data dataset.json --epochs 20 --device cpu
+TRAIN_SCRIPT = '''# train_lynx.py — Lynx instruction-tuning with loss masking
+# python train_lynx.py --data dataset.json --epochs 20 --device cpu
 import json, sys, os, torch, torch.nn as nn, torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 sys.path.insert(0, os.path.dirname(__file__))
-from alan_nn import AlanTransformer, AlanConfig, ByteTokenizer
+from lynx_nn import LynxTransformer, LynxConfig, ByteTokenizer
 
 class InstructionDataset(Dataset):
     def __init__(self, path, max_len=512):
@@ -973,11 +973,11 @@ def collate(batch):
 def train():
     a = {sys.argv[i]: sys.argv[i+1] for i in range(1, len(sys.argv)-1, 2)}
     device = a.get('--device', 'cuda' if torch.cuda.is_available() else 'cpu')
-    model = AlanTransformer().to(device)
+    model = LynxTransformer().to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=float(a.get('--lr','3e-4')))
     ds = InstructionDataset(a.get('--data','dataset.json'))
     dl = DataLoader(ds, batch_size=int(a.get('--batch','16')), shuffle=True, collate_fn=collate)
-    print(f'[Alan] Data:{len(ds)} Device:{device} Params:{sum(p.numel() for p in model.parameters()):,}')
+    print(f'[Lynx] Data:{len(ds)} Device:{device} Params:{sum(p.numel() for p in model.parameters()):,}')
     for ep in range(int(a.get('--epochs','10'))):
         model.train(); loss_acc = 0
         for x, y in dl:
@@ -987,20 +987,20 @@ def train():
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step(); loss_acc += loss.item()
         print(f'Epoch {ep+1}: loss={loss_acc/len(dl):.4f}')
-        torch.save(model.state_dict(), f'alan_ep{ep+1}.pt')
-    from alan_nn import export_to_numpy
-    export_to_numpy(f'alan_ep{a.get("--epochs","10")}.pt', 'alan_model.npz')
+        torch.save(model.state_dict(), f'lynx_ep{ep+1}.pt')
+    from lynx_nn import export_to_numpy
+    export_to_numpy(f'lynx_ep{a.get("--epochs","10")}.pt', 'lynx_model.npz')
 
 if __name__ == '__main__': train()
 '''
 
-def write_train_script(path='train_alan.py'):
+def write_train_script(path='train_lynx.py'):
     with open(path, 'w', encoding='utf-8') as f: f.write(TRAIN_SCRIPT)
 
 def export_to_numpy(pt_path, out_path):
     state = torch.load(pt_path, map_location='cpu', weights_only=True)
     np.savez(out_path, **{k: v.numpy() for k, v in state.items()})
-    print(f'[Alan] {pt_path} -> {out_path}')
+    print(f'[Lynx] {pt_path} -> {out_path}')
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1009,8 +1009,8 @@ def export_to_numpy(pt_path, out_path):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    w = AlanPanel()
-    w.setWindowTitle("🤖 Alan AI v2 — Multilingual")
+    w = LynxPanel()
+    w.setWindowTitle("🤖 Lynx AI v2 — Multilingual")
     w.resize(420, 640)
     w.show()
     app.exec()

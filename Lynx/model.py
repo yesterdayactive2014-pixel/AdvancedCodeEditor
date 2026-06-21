@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from config import AlanTuringConfig
+from config import LynxConfig
 
 
 class RMSNorm(nn.Module):
@@ -56,7 +56,7 @@ def apply_rotary_emb(
 class Attention(nn.Module):
     """Multi-Head Attention with RoPE and Grouped-Query Attention support."""
 
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
@@ -104,7 +104,7 @@ class Attention(nn.Module):
 class SwiGLU(nn.Module):
     """SwiGLU activation MLP (Noam Shazeer, 2020)."""
 
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__()
         self.gate_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
         self.up_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
@@ -117,7 +117,7 @@ class SwiGLU(nn.Module):
 class TransformerLayer(nn.Module):
     """Single decoder transformer layer with Pre-RMSNorm + SwiGLU."""
 
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__()
         self.self_attn = Attention(config)
         self.mlp = SwiGLU(config)
@@ -142,14 +142,14 @@ class TransformerLayer(nn.Module):
         return residual + x
 
 
-class AlanTuringModel(PreTrainedModel):
-    """AlanTuring transformer backbone (without LM head)."""
+class LynxModel(PreTrainedModel):
+    """Lynx transformer backbone (without LM head)."""
 
-    config_class = AlanTuringConfig
+    config_class = LynxConfig
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
 
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__(config)
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         self.layers = nn.ModuleList([TransformerLayer(config) for _ in range(config.num_hidden_layers)])
@@ -197,17 +197,17 @@ class AlanTuringModel(PreTrainedModel):
         return self.norm(x)
 
 
-class AlanTuringForCausalLM(PreTrainedModel):
-    """AlanTuring model with causal LM head."""
+class LynxForCausalLM(PreTrainedModel):
+    """Lynx model with causal LM head."""
 
-    config_class = AlanTuringConfig
+    config_class = LynxConfig
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
     _tied_weights_keys = {"lm_head.weight": "model.embed_tokens.weight"}
 
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__(config)
-        self.model = AlanTuringModel(config)
+        self.model = LynxModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.post_init()
 

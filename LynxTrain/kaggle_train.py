@@ -1,5 +1,5 @@
 """
-Alan Kaggle Training Notebook v2.5 (Монолитный файл)
+Lynx Kaggle Training Notebook v2.5 (Монолитный файл)
 ======================================================
 Двухэтапное обучение с loss-masking, сдвигом токенов,
 защитой от взрыва градиентов и автоматическим построением графиков.
@@ -20,10 +20,10 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 
-# Подключаем рабочую директорию, где лежит оригинальный alan_nn.py
+# Подключаем рабочую директорию, где лежит оригинальный lynx_nn.py
 sys.path.insert(0, '/kaggle/working')
-import alan_nn
-from alan_nn import AlanTransformer, ByteTokenizer
+import lynx_nn
+from lynx_nn import LynxTransformer, ByteTokenizer
 
 # ─── КОНФИГ ОБУЧЕНИЯ ─────────────────────────────────────────────────
 BATCH = 32
@@ -44,7 +44,7 @@ for root, _, files in os.walk('/kaggle/input'):
 
 # ─── ДАТАСЕТ С LOSS-MASKING ──────────────────────────────────────────
 class InstructionDataset(Dataset):
-    """Обучает Alan только на ответах, маскируя промпт (loss = -100)."""
+    """Обучает Lynx только на ответах, маскируя промпт (loss = -100)."""
     def __init__(self, path_or_data, max_len=MAX_LEN):
         self.tokenizer = ByteTokenizer()
         if isinstance(path_or_data, str):
@@ -93,20 +93,20 @@ def collate_fn(batch):
 
 # ─── ГЕНЕРАТОР ДИАЛОГОВОГО ДАТАСЕТА ─────────────────────────────────
 CHAT_SEED = [
-    ("Привет", "Привет! Я Alan, твой AI-ассистент в редакторе кода. Чем помочь?"),
+    ("Привет", "Привет! Я Lynx, твой AI-ассистент в редакторе кода. Чем помочь?"),
     ("Как дела?", "Всё хорошо! Я здесь и готов помогать с кодом."),
-    ("Кто ты?", "Я Alan — нейросеть (трансформер ~15M), живу внутри Advanced Code Editor."),
+    ("Кто ты?", "Я Lynx — нейросеть (трансформер ~15M), живу внутри Vertex Studio."),
     ("Что ты умеешь?", "Объяснять код, SQL, Arduino, писать примеры, помогать с багами."),
     ("Спасибо", "Пожалуйста! Обращайся."),
     ("Пока", "До свидания! Буду здесь, если понадоблюсь."),
-    ("Hello", "Hello! I'm Alan, your AI coding assistant."),
-    ("Who are you?", "I'm Alan — a ~15M parameter transformer inside the Advanced Code Editor."),
-    ("帮助我", "我是Alan，你的代码编辑助手。有什么可以帮助的吗？"),
-    ("こんにちは", "こんにちは！私はAlanです。コードについて何でも聞いてください。"),
-    ("Hallo", "Hallo! Ich bin Alan, dein KI-Assistent im Code-Editor."),
-    ("Bonjour", "Bonjour ! Je suis Alan, assistant IA dans l'éditeur de code."),
-    ("Hola", "¡Hola! Soy Alan, tu asistente de IA en el editor de código."),
-    ("مرحبًا", "مرحبًا! أنا Alan، مساعدك الذكي في محرر الكود."),
+    ("Hello", "Hello! I'm Lynx, your AI coding assistant."),
+    ("Who are you?", "I'm Lynx — a ~15M parameter transformer inside the Vertex Studio."),
+    ("帮助我", "我是Lynx，你的代码编辑助手。有什么可以帮助的吗？"),
+    ("こんにちは", "こんにちは！私はLynxです。コードについて何でも聞いてください。"),
+    ("Hallo", "Hallo! Ich bin Lynx, dein KI-Assistent im Code-Editor."),
+    ("Bonjour", "Bonjour ! Je suis Lynx, assistant IA dans l'éditeur de code."),
+    ("Hola", "¡Hola! Soy Lynx, tu asistente de IA en el editor de código."),
+    ("مرحبًا", "مرحبًا! أنا Lynx، مساعدك الذكي في محرر الكود."),
 ]
 
 def make_chat_dataset(pairs):
@@ -144,7 +144,7 @@ def run_stage(model, opt, data, stage_name, epochs, device, start_ep=0):
         loss = train_epoch(model, loader, opt, device)
         curr_ep = start_ep + ep + 1
         tag = f'{curr_ep}_{stage_name}'
-        ckpt = f'alan_ep{tag}.pt'
+        ckpt = f'lynx_ep{tag}.pt'
         torch.save(model.state_dict(), ckpt)
         print(f'[{tag}] loss={loss:.4f} -> {ckpt}')
         stage_logs.append({"epoch": curr_ep, "stage": stage_name, "loss": round(loss, 4), "ckpt": ckpt})
@@ -188,7 +188,7 @@ def plot_training_results(logs):
         plt.scatter(epochs[i], losses[i], color=colors[stages[i]], s=100, zorder=3)
         
     plt.plot(epochs, losses, color='#7f7f7f', linestyle='--', alpha=0.6, zorder=2)
-    plt.title('Advanced Code Editor: Траектория обучения ИИ Алана', fontsize=14, fontweight='bold')
+    plt.title('Vertex Studio: Траектория обучения ИИ Lynx', fontsize=14, fontweight='bold')
     plt.xlabel('Общая Эпоха', fontsize=12)
     plt.ylabel('Значение Loss (Ошибка)', fontsize=12)
     plt.grid(True, linestyle=':', alpha=0.6)
@@ -206,8 +206,8 @@ def plot_training_results(logs):
 
 # ─── MAIN ───────────────────────────────────────────────────────────
 def main():
-    print(f'🚀 [Alan System] Запуск на устройстве: {DEVICE.upper()}')
-    model = AlanTransformer().to(DEVICE)
+    print(f'🚀 [Lynx System] Запуск на устройстве: {DEVICE.upper()}')
+    model = LynxTransformer().to(DEVICE)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     all_logs = []
     ep_offset = 0
@@ -240,5 +240,5 @@ def main():
     all_logs.extend(log)
 
     # ── Сохранение финальных весов и логов ──
-    final_ckpt = 'alan_final.pt'
+    final_ckpt = 'lynx_final.pt'
     torch.save(model.state_dict(), final_ckpt)

@@ -1,5 +1,5 @@
 """
-Инференс AlanTuring 200M — запуск обученной модели и генерация ответов.
+Инференс Lynx 261M — запуск обученной модели и генерация ответов.
 
 Поддерживает:
     - Загрузку чекпоинта (финального или промежуточного)
@@ -18,13 +18,13 @@ import sys
 import torch
 from transformers import GenerationConfig
 
-from config import AlanTuringConfig
-from model import AlanTuringForCausalLM
+from config import LynxConfig
+from model import LynxForCausalLM
 from tokenizer import load_tokenizer
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="AlanTuring Inference")
+    parser = argparse.ArgumentParser(description="Lynx Inference")
     parser.add_argument("--checkpoint", type=str, default="./checkpoints/final",
                         help="Path to model checkpoint")
     parser.add_argument("--interactive", action="store_true",
@@ -54,8 +54,8 @@ def load_model(checkpoint_path: str, device: str):
     print(f"Загрузка модели из {checkpoint_path}...")
     tokenizer = load_tokenizer()
 
-    config = AlanTuringConfig.from_pretrained(checkpoint_path)
-    model = AlanTuringForCausalLM.from_pretrained(checkpoint_path, config=config)
+    config = LynxConfig.from_pretrained(checkpoint_path)
+    model = LynxForCausalLM.from_pretrained(checkpoint_path, config=config)
     model.to(device)
     model.eval()
 
@@ -64,7 +64,7 @@ def load_model(checkpoint_path: str, device: str):
 
 
 def generate_answer(
-    model: AlanTuringForCausalLM,
+    model: LynxForCausalLM,
     tokenizer,
     prompt: str,
     args: argparse.Namespace,
@@ -72,7 +72,7 @@ def generate_answer(
 ) -> str:
     """Сгенерировать ответ на prompt и декодировать целиком."""
     messages = [
-        {"role": "system", "content": "Ты — Алан Тьюринг, полезный ИИ-ассистент. Отвечай на русском языке."},
+        {"role": "system", "content": "Ты — Lynx, полезный ИИ-ассистент. Отвечай на русском языке."},
         {"role": "user", "content": prompt},
     ]
 
@@ -110,7 +110,7 @@ def generate_answer(
 
 def run_interactive(model, tokenizer, args, device):
     """Интерактивный чат."""
-    print("\n=== AlanTuring 200M — Интерактивный чат ===")
+    print("\n=== Lynx 261M — Интерактивный чат ===")
     print("Введите 'exit' или 'quit' для выхода.\n")
 
     history = []
@@ -127,7 +127,7 @@ def run_interactive(model, tokenizer, args, device):
             break
 
         response = generate_answer(model, tokenizer, prompt, args, device)
-        print(f"Алан Тьюринг: {response}\n")
+        print(f"Lynx: {response}\n")
 
 
 def main():

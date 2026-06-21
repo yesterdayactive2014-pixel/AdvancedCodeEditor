@@ -1,5 +1,5 @@
 """
-train_local.py — AlanTuring 200M локальный тренинг на RTX 4060 Ti (8 GB, Ada Lovelace).
+train_local.py — Lynx 261M локальный тренинг на RTX 4060 Ti (8 GB, Ada Lovelace).
 
 Запуск:
     python train_local.py
@@ -42,8 +42,8 @@ from transformers import (
 # ═══════════════════════════════════════════════════════════════
 
 
-class AlanTuringConfig(PretrainedConfig):
-    model_type = "alan_turing"
+class LynxConfig(PretrainedConfig):
+    model_type = "lynx"
 
     def __init__(
         self,
@@ -131,7 +131,7 @@ def apply_rotary_emb(xq: torch.Tensor, xk: torch.Tensor, cos: torch.Tensor, sin:
 
 
 class Attention(nn.Module):
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
@@ -168,7 +168,7 @@ class Attention(nn.Module):
 
 
 class SwiGLU(nn.Module):
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__()
         self.gate_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
         self.up_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
@@ -179,7 +179,7 @@ class SwiGLU(nn.Module):
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__()
         self.self_attn = Attention(config)
         self.mlp = SwiGLU(config)
@@ -193,12 +193,12 @@ class TransformerLayer(nn.Module):
         return r + x
 
 
-class AlanTuringModel(PreTrainedModel):
-    config_class = AlanTuringConfig
+class LynxModel(PreTrainedModel):
+    config_class = LynxConfig
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
 
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__(config)
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         self.layers = nn.ModuleList([TransformerLayer(config) for _ in range(config.num_hidden_layers)])
@@ -233,15 +233,15 @@ class AlanTuringModel(PreTrainedModel):
         return self.norm(x)
 
 
-class AlanTuringForCausalLM(PreTrainedModel, GenerationMixin):
-    config_class = AlanTuringConfig
+class LynxForCausalLM(PreTrainedModel, GenerationMixin):
+    config_class = LynxConfig
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
     _tied_weights_keys = {"lm_head.weight": "model.embed_tokens.weight"}
 
-    def __init__(self, config: AlanTuringConfig):
+    def __init__(self, config: LynxConfig):
         super().__init__(config)
-        self.model = AlanTuringModel(config)
+        self.model = LynxModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.post_init()
 
@@ -285,8 +285,8 @@ def load_tokenizer():
             "{% for message in messages %}"
             "{% if message['role'] == 'system' %}{{ message['content'] }}\n"
             "{% elif message['role'] == 'user' %}Пользователь: {{ message['content'] }}\n"
-            "{% elif message['role'] == 'assistant' %}Алан Тьюринг: {{ message['content'] }}\n"
-            "{% endif %}{% endfor %}Алан Тьюринг:"
+            "{% elif message['role'] == 'assistant' %}Lynx: {{ message['content'] }}\n"
+            "{% endif %}{% endfor %}Lynx:"
         )
     print(f"  Tokenizer: {tok.vocab_size} tokens, pad_id={tok.pad_token_id}")
     return tok
@@ -297,7 +297,7 @@ def load_tokenizer():
 # ═══════════════════════════════════════════════════════════════
 
 SYNTHETIC_DATA = [
-    {"instruction": "Привет! Как дела?", "response": "Привет! Я Алан Тьюринг, искусственный интеллект. У меня всё отлично, готов помогать тебе с любыми вопросами!"},
+    {"instruction": "Привет! Как дела?", "response": "Привет! Я Lynx, искусственный интеллект. У меня всё отлично, готов помогать тебе с любыми вопросами!"},
     {"instruction": "Расскажи про нейросети.", "response": "Нейросети — это вычислительные системы, вдохновлённые биологическими нейронными сетями. Они состоят из слоёв искусственных нейронов, каждый из которых применяет нелинейное преобразование к входным данным. Современные архитектуры, такие как трансформеры, используют механизм внимания для обработки последовательностей."},
     {"instruction": "Что такое трансформер?", "response": "Трансформер — это архитектура нейросети, основанная на механизме внимания (attention). Она была предложена в 2017 году в статье 'Attention Is All You Need'. В отличие от RNN, трансформер обрабатывает все токены последовательности параллельно, что позволяет эффективно обучать большие модели на огромных объёмах данных."},
     {"instruction": "Как учить Python?", "response": "Начни с основ: переменные, типы данных, условные операторы и циклы. Затем изучи функции, классы и модули. Практикуйся на задачах с LeetCode или Codewars. Для анализа данных используй pandas и numpy, для веба — FastAPI или Flask. Главное — писать код каждый день хотя бы по 30 минут."},
@@ -348,7 +348,7 @@ class InstructionDataset(Dataset):
         pair = self.pairs[idx]
         text = (
             f"Пользователь: {pair['instruction']}\n"
-            f"Алан Тьюринг: {pair['response']}"
+            f"Lynx: {pair['response']}"
         )
         enc = self.tokenizer(
             text,
@@ -374,7 +374,7 @@ class InstructionDataset(Dataset):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AlanTuring 200M — Local Train (RTX 4060 Ti)")
+    parser = argparse.ArgumentParser(description="Lynx 261M — Local Train (RTX 4060 Ti)")
     parser.add_argument("--batch-size", type=int, default=4, help="Per-device batch size")
     parser.add_argument("--grad-accum", type=int, default=8, help="Gradient accumulation steps")
     parser.add_argument("--max-length", type=int, default=512, help="Max sequence length")
@@ -393,7 +393,7 @@ def main():
 
     # ── Шаг 1: Проверка CUDA и GPU ─────────────────────────────
     print("=" * 55)
-    print("AlanTuring 200M — Локальный тренинг")
+    print("Lynx 261M — Локальный тренинг")
     print("=" * 55)
 
     if not torch.cuda.is_available():
@@ -422,13 +422,13 @@ def main():
 
     # ── Шаг 3: Создание конфига и модели ───────────────────────
     print("\n[Шаг 3] Инициализация модели ~195M...")
-    config = AlanTuringConfig(
+    config = LynxConfig(
         vocab_size=len(tokenizer) + 200,
         pad_token_id=tokenizer.pad_token_id,
         bos_token_id=tokenizer.bos_token_id or 1,
         eos_token_id=tokenizer.eos_token_id or 2,
     )
-    model = AlanTuringForCausalLM(config)
+    model = LynxForCausalLM(config)
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  Параметров: {n_params / 1e6:.1f}M")
 
@@ -523,7 +523,7 @@ def main():
 
 @torch.no_grad()
 def generate_stable(
-    model: AlanTuringForCausalLM,
+    model: LynxForCausalLM,
     input_ids: torch.LongTensor,
     max_new_tokens: int = 256,
     temperature: float = 0.8,
@@ -612,15 +612,15 @@ def generate_stable(
 
 def run_inference(checkpoint_path: str, prompt: str, max_new_tokens: int = 256):
     print(f"Загрузка модели из {checkpoint_path}...")
-    config = AlanTuringConfig.from_pretrained(checkpoint_path)
-    model = AlanTuringForCausalLM.from_pretrained(checkpoint_path, config=config)
+    config = LynxConfig.from_pretrained(checkpoint_path)
+    model = LynxForCausalLM.from_pretrained(checkpoint_path, config=config)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     model.eval()
     tokenizer = load_tokenizer()
 
     messages = [
-        {"role": "system", "content": "Ты — Алан Тьюринг, полезный ИИ-ассистент. Отвечай на русском языке."},
+        {"role": "system", "content": "Ты — Lynx, полезный ИИ-ассистент. Отвечай на русском языке."},
         {"role": "user", "content": prompt},
     ]
     input_text = tokenizer.apply_chat_template(messages, tokenize=False)

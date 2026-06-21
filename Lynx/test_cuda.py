@@ -1,4 +1,4 @@
-"""Диагностика GPU перед обучением AlanTuring 200M на RTX 4060 Ti."""
+"""Диагностика GPU перед обучением Lynx 261M на RTX 4060 Ti."""
 import torch, time, sys
 
 print(f"PyTorch: {torch.__version__}")
@@ -52,4 +52,4 @@ del x
 
 print(f"Allocated: {torch.cuda.memory_allocated() / 1e6:.1f} MB")
 print(f"Cached:    {torch.cuda.memory_reserved() / 1e6:.1f} MB")
-print("✅ GPU готова к обучению AlanTuring 200M!")
+print("✅ GPU готова к обучению Lynx 261M!")

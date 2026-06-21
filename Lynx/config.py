@@ -1,8 +1,8 @@
 from transformers import PretrainedConfig
 
 
-class AlanTuringConfig(PretrainedConfig):
-    """Конфигурация AlanTuring — компактный LLaMA-like трансформер ~200M параметров.
+class LynxConfig(PretrainedConfig):
+    """Конфигурация Lynx — компактный LLaMA-like трансформер ~200M параметров.
 
     Архитектура:
         - Decoder-only transformer (GPT/LLaMA style)
@@ -18,7 +18,7 @@ class AlanTuringConfig(PretrainedConfig):
         → Итого: ~3.7 GB — запас >12 GB под батч и seq_len
     """
 
-    model_type = "alan_turing"
+    model_type = "lynx"
 
     def __init__(
         self,

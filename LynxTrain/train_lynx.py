@@ -1,5 +1,5 @@
 """
-train_alan.py — Alan instruction-tuning with loss masking
+train_lynx.py — Lynx instruction-tuning with loss masking
 Usage:
     python train_alan.py --data dataset.json --epochs 20 --device cpu
     python train_alan.py --data dataset.json --epochs 20 --device cuda
@@ -9,7 +9,7 @@ Dataset format: JSON array of {"text": "<s>[INST] query [/INST] answer </s>"}
 import json, sys, os, torch, torch.nn as nn, torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 sys.path.insert(0, os.path.dirname(__file__))
-from alan_nn import AlanTransformer, AlanConfig, ByteTokenizer
+from lynx_nn import LynxTransformer, LynxConfig, ByteTokenizer
 
 class InstructionDataset(Dataset):
     def __init__(self, path, max_len=512):
@@ -63,11 +63,11 @@ def train():
     device = args.get('--device', 'cuda' if torch.cuda.is_available() else 'cpu')
     lr = float(args.get('--lr', '3e-4'))
     batch_size = int(args.get('--batch', '16'))
-    model = AlanTransformer().to(device)
+    model = LynxTransformer().to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     ds = InstructionDataset(data_path, max_len=512)
     dl = DataLoader(ds, batch_size=batch_size, shuffle=True, collate_fn=collate)
-    print(f'[Alan] Data: {len(ds)} samples | Device: {device} | Params: {sum(p.numel() for p in model.parameters()):,}')
+    print(f'[Lynx] Data: {len(ds)} samples | Device: {device} | Params: {sum(p.numel() for p in model.parameters()):,}')
     for ep in range(epochs):
         model.train()
         total_loss = 0
@@ -82,10 +82,10 @@ def train():
             total_loss += loss.item()
         avg_loss = total_loss / len(dl)
         print(f'Epoch {ep+1}/{epochs}  loss={avg_loss:.4f}')
-        torch.save(model.state_dict(), f'alan_ep{ep+1}.pt')
-        print(f'  -> Saved alan_ep{ep+1}.pt')
-    from alan_nn import export_to_numpy
-    export_to_numpy(f'alan_ep{epochs}.pt', 'alan_model.npz')
+        torch.save(model.state_dict(), f'lynx_ep{ep+1}.pt')
+        print(f'  -> Saved lynx_ep{ep+1}.pt')
+    from lynx_nn import export_to_numpy
+    export_to_numpy(f'lynx_ep{epochs}.pt', 'lynx_model.npz')
 
 if __name__ == '__main__':
     train()

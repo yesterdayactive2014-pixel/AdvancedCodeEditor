@@ -1,9 +1,9 @@
-# train_alan.py — Alan instruction-tuning with loss masking
-# python train_alan.py --data dataset.json --epochs 20 --device cpu
+# train_lynx.py — Lynx instruction-tuning with loss masking
+# python train_lynx.py --data dataset.json --epochs 20 --device cpu
 import json, sys, os, torch, torch.nn as nn, torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 sys.path.insert(0, os.path.dirname(__file__))
-from alan_nn import AlanTransformer, AlanConfig, ByteTokenizer
+from lynx_nn import LynxTransformer, LynxConfig, ByteTokenizer
 
 class InstructionDataset(Dataset):
     def __init__(self, path, max_len=512):
@@ -40,11 +40,11 @@ def collate(batch):
 def train():
     a = {sys.argv[i]: sys.argv[i+1] for i in range(1, len(sys.argv)-1, 2)}
     device = a.get('--device', 'cuda' if torch.cuda.is_available() else 'cpu')
-    model = AlanTransformer().to(device)
+    model = LynxTransformer().to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=float(a.get('--lr','3e-4')))
     ds = InstructionDataset(a.get('--data','dataset.json'))
     dl = DataLoader(ds, batch_size=int(a.get('--batch','16')), shuffle=True, collate_fn=collate)
-    print(f'[Alan] Data:{len(ds)} Device:{device} Params:{sum(p.numel() for p in model.parameters()):,}')
+    print(f'[Lynx] Data:{len(ds)} Device:{device} Params:{sum(p.numel() for p in model.parameters()):,}')
     for ep in range(int(a.get('--epochs','10'))):
         model.train(); loss_acc = 0
         for x, y in dl:
@@ -54,8 +54,8 @@ def train():
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step(); loss_acc += loss.item()
         print(f'Epoch {ep+1}: loss={loss_acc/len(dl):.4f}')
-        torch.save(model.state_dict(), f'alan_ep{ep+1}.pt')
-    from alan_nn import export_to_numpy
-    export_to_numpy(f'alan_ep{a.get("--epochs","10")}.pt', 'alan_model.npz')
+        torch.save(model.state_dict(), f'lynx_ep{ep+1}.pt')
+    from lynx_nn import export_to_numpy
+    export_to_numpy(f'lynx_ep{a.get("--epochs","10")}.pt', 'lynx_model.npz')
 
 if __name__ == '__main__': train()

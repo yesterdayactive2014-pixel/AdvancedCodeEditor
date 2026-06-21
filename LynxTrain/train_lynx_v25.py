@@ -1,14 +1,14 @@
 """
-Alan v2.5 — локальный instruction-tuning (CPU/GPU)
+Lynx v2.5 — локальный instruction-tuning (CPU/GPU)
 Двухэтапное обучение, loss-masking, фикс сдвига токенов, графики matplotlib.
 """
 import json, sys, os, torch, torch.nn as nn, torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from alan_nn import AlanTransformer, ByteTokenizer
+from lynx_nn import LynxTransformer, ByteTokenizer
 
 # ─── пути ───────────────────────────────────────────────────────────
-DATA_PATH = "AlanTrain/dataset.json"
-MODELS_DIR = "AlanTrain/models"
+DATA_PATH = "LynxTrain/dataset.json"
+MODELS_DIR = "LynxTrain/models"
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 # ─── конфиг ─────────────────────────────────────────────────────────
@@ -72,20 +72,20 @@ def collate_fn(batch):
 
 # ─── диалоговый датасет ─────────────────────────────────────────────
 CHAT_SEED = [
-    ("Привет", "Привет! Я Alan, твой AI-ассистент в редакторе кода. Чем помочь?"),
+    ("Привет", "Привет! Я Lynx, твой AI-ассистент в редакторе кода. Чем помочь?"),
     ("Как дела?", "Всё хорошо! Я здесь и готов помогать с кодом."),
-    ("Кто ты?", "Я Alan — нейросеть (трансформер ~15M), живу внутри Advanced Code Editor."),
+    ("Кто ты?", "Я Lynx — нейросеть (трансформер ~15M), живу внутри Vertex Studio."),
     ("Что ты умеешь?", "Объяснять код, SQL, Arduino, писать примеры, помогать с багами."),
     ("Спасибо", "Пожалуйста! Обращайся."),
     ("Пока", "До свидания! Буду здесь, если понадоблюсь."),
-    ("Hello", "Hello! I'm Alan, your AI coding assistant."),
-    ("Who are you?", "I'm Alan — a ~15M parameter transformer inside the Advanced Code Editor."),
-    ("帮助我", "我是Alan，你的代码编辑助手。有什么可以帮助的吗？"),
-    ("こんにちは", "こんにちは！私はAlanです。コードについて何でも聞いてください。"),
-    ("Hallo", "Hallo! Ich bin Alan, dein KI-Assistent im Code-Editor."),
-    ("Bonjour", "Bonjour ! Je suis Alan, assistant IA dans l'éditeur de code."),
-    ("Hola", "¡Hola! Soy Alan, tu asistente de IA en el editor de código."),
-    ("مرحبًا", "مرحبًا! أنا Alan، مساعدك الذكي في محرر الكود."),
+    ("Hello", "Hello! I'm Lynx, your AI coding assistant."),
+    ("Who are you?", "I'm Lynx — a ~15M parameter transformer inside the Vertex Studio."),
+    ("帮助我", "我是Lynx，你的代码编辑助手。有什么可以帮助的吗？"),
+    ("こんにちは", "こんにちは！私はLynxです。コードについて何でも聞いてください。"),
+    ("Hallo", "Hallo! Ich bin Lynx, dein KI-Assistent im Code-Editor."),
+    ("Bonjour", "Bonjour ! Je suis Lynx, assistant IA dans l'éditeur de code."),
+    ("Hola", "¡Hola! Soy Lynx, tu asistente de IA en el editor de código."),
+    ("مرحبًا", "مرحبًا! أنا Lynx، مساعدك الذكي في محرر الكود."),
 ]
 
 def make_chat_dataset(pairs):
@@ -113,7 +113,7 @@ def run_stage(model, opt, data, stage_name, epochs, device, start_ep=0):
     for ep in range(epochs):
         loss = train_epoch(model, loader, opt, device)
         ep_num = start_ep + ep + 1
-        ckpt = os.path.join(MODELS_DIR, f'alan_ep{ep_num}_{stage_name}.pt')
+        ckpt = os.path.join(MODELS_DIR, f'lynx_ep{ep_num}_{stage_name}.pt')
         torch.save(model.state_dict(), ckpt)
         print(f'[{stage_name} ep{ep_num}] loss={loss:.4f} -> {ckpt}')
         log.append({"epoch": ep_num, "stage": stage_name, "loss": round(loss, 4), "ckpt": ckpt})
@@ -140,7 +140,7 @@ def plot_loss(log, save_path=os.path.join(MODELS_DIR, 'loss_plot.png')):
         ax.plot(epochs, losses, color='#d4d4d4', linewidth=1, alpha=0.6)
         ax.set_xlabel('Epoch', color='#d4d4d4')
         ax.set_ylabel('Loss', color='#d4d4d4')
-        ax.set_title('Alan Training Loss', color='#d4d4d4')
+        ax.set_title('Lynx Training Loss', color='#d4d4d4')
         ax.tick_params(colors='#d4d4d4')
         for spine in ax.spines.values():
             spine.set_color('#555')
@@ -153,14 +153,14 @@ def plot_loss(log, save_path=os.path.join(MODELS_DIR, 'loss_plot.png')):
                   loc='upper right')
         fig.savefig(save_path, dpi=150, bbox_inches='tight')
         plt.close(fig)
-        print(f'[Alan] Loss plot saved: {save_path}')
+        print(f'[Lynx] Loss plot saved: {save_path}')
     except ImportError:
-        print('[Alan] matplotlib not installed — skipping plot')
+        print('[Lynx] matplotlib not installed — skipping plot')
 
 # ─── тест ───────────────────────────────────────────────────────────
 def test(ckpt, device='cpu'):
-    from alan_nn import generate
-    model = AlanTransformer().to(device)
+    from lynx_nn import generate
+    model = LynxTransformer().to(device)
     state = torch.load(ckpt, map_location=device, weights_only=True)
     model.load_state_dict(state, strict=False)
     model.eval()
@@ -182,8 +182,8 @@ def test(ckpt, device='cpu'):
 
 # ─── main ───────────────────────────────────────────────────────────
 def main(resume_ckpt=None, start_ep=0):
-    print(f'[Alan v2.5] Device: {DEVICE} | Data: {DATA_PATH} | Models: {MODELS_DIR}')
-    model = AlanTransformer().to(DEVICE)
+    print(f'[Lynx v2.5] Device: {DEVICE} | Data: {DATA_PATH} | Models: {MODELS_DIR}')
+    model = LynxTransformer().to(DEVICE)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     all_logs = []
     ep_offset = start_ep
@@ -191,26 +191,26 @@ def main(resume_ckpt=None, start_ep=0):
     if resume_ckpt and os.path.exists(resume_ckpt):
         state = torch.load(resume_ckpt, map_location=DEVICE, weights_only=True)
         model.load_state_dict(state, strict=False)
-        print(f'[Alan] Resumed from: {resume_ckpt} (starting ep {start_ep+1})')
+        print(f'[Lynx] Resumed from: {resume_ckpt} (starting ep {start_ep+1})')
 
     # ЭТАП 1: код
     if os.path.exists(DATA_PATH):
-        print(f'[Alan] Stage 1: code data from {DATA_PATH}')
+        print(f'[Lynx] Stage 1: code data from {DATA_PATH}')
         ds_code = InstructionDataset(DATA_PATH)
         log, ep_offset = run_stage(model, opt, ds_code, 'code', EPOCHS_CODE, DEVICE, ep_offset)
         all_logs.extend(log)
     else:
-        print(f'[Alan] {DATA_PATH} not found — skipping code stage')
+        print(f'[Lynx] {DATA_PATH} not found — skipping code stage')
 
     # ЭТАП 2: диалоги
-    print(f'[Alan] Stage 2: chat ({len(CHAT_SEED)} pairs)')
+    print(f'[Lynx] Stage 2: chat ({len(CHAT_SEED)} pairs)')
     chat_data = make_chat_dataset(CHAT_SEED)
     ds_chat = InstructionDataset(chat_data)
     log, ep_offset = run_stage(model, opt, ds_chat, 'chat', EPOCHS_CHAT, DEVICE, ep_offset)
     all_logs.extend(log)
 
     # ЭТАП 3: совместная дообучка
-    print('[Alan] Stage 3: full fine-tune')
+    print('[Lynx] Stage 3: full fine-tune')
     full_data = []
     if os.path.exists(DATA_PATH):
         with open(DATA_PATH, 'r', encoding='utf-8') as f:
@@ -221,15 +221,15 @@ def main(resume_ckpt=None, start_ep=0):
     all_logs.extend(log)
 
     # финал
-    final = os.path.join(MODELS_DIR, 'alan_final.pt')
+    final = os.path.join(MODELS_DIR, 'lynx_final.pt')
     torch.save(model.state_dict(), final)
-    print(f'[Alan] Final checkpoint: {final}')
+    print(f'[Lynx] Final checkpoint: {final}')
 
     # лог
     log_path = os.path.join(MODELS_DIR, 'training_log.json')
     with open(log_path, 'w', encoding='utf-8') as f:
         json.dump(all_logs, f, indent=2)
-    print(f'[Alan] Log saved: {log_path}')
+    print(f'[Lynx] Log saved: {log_path}')
 
     # график
     plot_loss(all_logs)
@@ -237,7 +237,7 @@ def main(resume_ckpt=None, start_ep=0):
 if __name__ == '__main__':
     if '--test' in sys.argv:
         idx = sys.argv.index('--test')
-        ckpt = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else os.path.join(MODELS_DIR, 'alan_final.pt')
+        ckpt = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else os.path.join(MODELS_DIR, 'lynx_final.pt')
         test(ckpt, 'cuda' if torch.cuda.is_available() else 'cpu')
     elif '--resume' in sys.argv:
         idx = sys.argv.index('--resume')

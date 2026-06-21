@@ -1,10 +1,10 @@
 """
-prepare_dataset.py — Подготовка датасета для instruction-tuning Alan
+prepare_dataset.py — Подготовка датасета для instruction-tuning Lynx
 
 Использование:
   1. Собрать CSV/JSON с парами вопрос-ответ (вручную или через другую LLM)
   2. Конвертировать в train-формат:  python prepare_dataset.py pairs.json -o dataset.json
-  3. Обучить Alan:                     python train_alan.py --data dataset.json --epochs 20
+  3. Обучить Lynx:                     python train_lynx.py --data dataset.json --epochs 20
 
 Генерация датасета через другую модель:
   1. Запустите: python prepare_dataset.py --export-prompt > prompt_for_llm.txt
@@ -18,11 +18,11 @@ TRAIN_FORMAT = '<s>[INST] {query} [/INST] {answer} </s>'
 # Сидированные примеры для затравки (seed)
 SEED_PAIRS = [
     # Русский
-    ("Привет", "Привет! Я Alan, твой AI-ассистент в редакторе кода. Чем могу помочь?"),
-    ("Как дела?", "Всё отлично! Я встроен в CodeEditor и готов помогать с кодом. Спрашивай!"),
-    ("Кто ты?", "Я Alan — нейросеть (трансформер ~15M параметров), обученная помогать с программированием. Работаю внутри Advanced Code Editor."),
+    ("Привет", "Привет! Я Lynx, твой AI-ассистент в редакторе кода. Чем могу помочь?"),
+    ("Как дела?", "Всё отлично! Я встроен в Vela и готов помогать с кодом. Спрашивай!"),
+    ("Кто ты?", "Я Lynx — нейросеть (трансформер ~15M параметров), обученная помогать с программированием. Работаю внутри Vertex Studio."),
     ("Что ты умеешь?", "Объяснять код, писать примеры, помогать с багами, SQL-запросами, Arduino, OrionScript. Спрашивай о чём угодно!"),
-    ("Расскажи о себе", "Я Alan, AI-ассистент на основе PyTorch. Использую байтовый токенизатор для работы с любым языком. Режимы: Free (CPU) и Premium (GPU)."),
+    ("Расскажи о себе", "Я Lynx, AI-ассистент на основе PyTorch. Использую байтовый токенизатор для работы с любым языком. Режимы: Free (CPU) и Premium (GPU)."),
     ("Спасибо", "Пожалуйста! Обращайся."),
     ("Пока", "До свидания! Буду здесь, если понадоблюсь."),
     ("Напиши hello world на Python", "print('Hello, World!')"),
@@ -35,36 +35,36 @@ SEED_PAIRS = [
     ("Как работает компилятор?", "Компилятор переводит исходный код в машинный. Этапы: лексический анализ → синтаксический → семантический → генерация кода."),
 
     # English
-    ("Hello", "Hello! I'm Alan, your AI assistant in the code editor. How can I help you?"),
-    ("Who are you?", "I'm Alan — a ~15M parameter transformer neural network trained to help with programming. I live inside the Advanced Code Editor."),
+    ("Hello", "Hello! I'm Lynx, your AI assistant in the code editor. How can I help you?"),
+    ("Who are you?", "I'm Lynx — a ~15M parameter transformer neural network trained to help with programming. I live inside the Vertex Studio."),
     ("Write a Fibonacci function", "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        yield a\n        a, b = b, a + b"),
     ("What is OOP?", "OOP (Object-Oriented Programming) is a paradigm based on objects containing data and methods. Key concepts: encapsulation, inheritance, polymorphism."),
 
     # Китайский
-    ("你好", "你好！我是Alan，你的代码编辑器AI助手。有什么可以帮助的吗？"),
+    ("你好", "你好！我是Lynx，你的代码编辑器AI助手。有什么可以帮助的吗？"),
     ("写一个Python函数", "def greet(name):\n    return f'Hello, {name}!'"),
 
     # Японский
-    ("こんにちは", "こんにちは！私はAlan、コードエディターのAIアシスタントです。何かお手伝いしましょうか？"),
+    ("こんにちは", "こんにちは！私はLynx、コードエディターのAIアシスタントです。何かお手伝いしましょうか？"),
 
     # Корейский
-    ("안녕하세요", "안녕하세요! 저는 Alan, 코드 편집기 AI 어시스턴트입니다. 무엇을 도와드릴까요?"),
+    ("안녕하세요", "안녕하세요! 저는 Lynx, 코드 편집기 AI 어시스턴트입니다. 무엇을 도와드릴까요?"),
 
     # Немецкий
-    ("Hallo", "Hallo! Ich bin Alan, dein KI-Assistent im Code-Editor. Wie kann ich helfen?"),
+    ("Hallo", "Hallo! Ich bin Lynx, dein KI-Assistent im Code-Editor. Wie kann ich helfen?"),
 
     # Французский
-    ("Bonjour", "Bonjour ! Je suis Alan, ton assistant IA dans l'éditeur de code. Comment puis-je t'aider ?"),
+    ("Bonjour", "Bonjour ! Je suis Lynx, ton assistant IA dans l'éditeur de code. Comment puis-je t'aider ?"),
 
     # Испанский
-    ("Hola", "¡Hola! Soy Alan, tu asistente de IA en el editor de código. ¿Cómo puedo ayudarte?"),
+    ("Hola", "¡Hola! Soy Lynx, tu asistente de IA en el editor de código. ¿Cómo puedo ayudarte?"),
 
     # Арабский
-    ("مرحبًا", "مرحبًا! أنا Alan، مساعدك الذكي في محرر الكود. كيف يمكنني مساعدتك؟"),
+    ("مرحبًا", "مرحبًا! أنا Lynx، مساعدك الذكي في محرر الكود. كيف يمكنني مساعدتك؟"),
 ]
 
-PROMPT_TEMPLATE = """Ты — генератор тренировочных данных для маленькой нейросети Alan (15M параметров, байтовый токенизатор).
-Сгенерируй JSON-массив с парами "запрос-ответ" для обучения Alan отвечать на вопросы о программировании.
+PROMPT_TEMPLATE = """Ты — генератор тренировочных данных для маленькой нейросети Lynx (15M параметров, байтовый токенизатор).
+Сгенерируй JSON-массив с парами "запрос-ответ" для обучения Lynx отвечать на вопросы о программировании.
 
 Требования:
 - Ответы должны быть короткими (1-3 предложения или 5-15 строк кода)
@@ -74,7 +74,7 @@ PROMPT_TEMPLATE = """Ты — генератор тренировочных да
 - Код должен быть синтаксически корректным
 
 Формат каждой пары:
-{{"query": "вопрос пользователя", "answer": "ответ Alan"}}
+{{"query": "вопрос пользователя", "answer": "ответ Lynx"}}
 
 Верни ТОЛЬКО JSON-массив, без пояснений. Сгенерируй 50-100 пар.
 
@@ -126,23 +126,23 @@ def convert(pairs):
 def export_seed(path='seed_pairs.json'):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump([{"query": q, "answer": a} for q, a in SEED_PAIRS], f, ensure_ascii=False, indent=2)
-    print(f'[Alan] Seed pairs saved: {path} ({len(SEED_PAIRS)} pairs)')
+    print(f'[Lynx] Seed pairs saved: {path} ({len(SEED_PAIRS)} pairs)')
 
 def merge_datasets(paths, output):
     all_items = []
     for p in paths:
         items = convert(load_pairs(p))
         all_items.extend(items)
-        print(f'[Alan] +{p}: {len(items)} pairs')
+        print(f'[Lynx] +{p}: {len(items)} pairs')
     with open(output, 'w', encoding='utf-8') as f:
         json.dump(all_items, f, ensure_ascii=False, indent=2)
-    print(f'[Alan] Merged dataset: {output} ({len(all_items)} total pairs)')
+    print(f'[Lynx] Merged dataset: {output} ({len(all_items)} total pairs)')
 
 if __name__ == '__main__':
     if '--export-prompt' in sys.argv:
         with open('prompt_for_llm.txt', 'w', encoding='utf-8') as f:
             f.write(PROMPT_TEMPLATE)
-        print('[Alan] Prompt exported to prompt_for_llm.txt — скопируй в Claude/GPT/DeepSeek')
+        print('[Lynx] Prompt exported to prompt_for_llm.txt — скопируй в Claude/GPT/DeepSeek')
         sys.exit(0)
 
     if '--seed' in sys.argv:
@@ -162,4 +162,4 @@ if __name__ == '__main__':
         items = convert(pairs)
         with open(output, 'w', encoding='utf-8') as f:
             json.dump(items, f, ensure_ascii=False, indent=2)
-        print(f'[Alan] Converted {len(items)} pairs -> {output}')
+        print(f'[Lynx] Converted {len(items)} pairs -> {output}')

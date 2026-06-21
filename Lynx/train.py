@@ -1,5 +1,5 @@
 """
-Тренировка AlanTuring 200M (поддержка T4 16GB + RTX 4060 Ti 8GB + Ada Lovelace).
+Тренировка Lynx 261M (поддержка T4 16GB + RTX 4060 Ti 8GB + Ada Lovelace).
 
 Запуск:
     python train.py --batch-size 4 --grad-accum 8 --max-length 512 --epochs 3    # 4060 Ti
@@ -28,14 +28,14 @@ from transformers import (
     set_seed,
 )
 
-from config import AlanTuringConfig
-from model import AlanTuringForCausalLM
+from config import LynxConfig
+from model import LynxForCausalLM
 from tokenizer import load_tokenizer
 from dataset import load_instruction_dataset
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train AlanTuring 200M")
+    parser = argparse.ArgumentParser(description="Train Lynx 261M")
     parser.add_argument("--batch-size", type=int, default=8, help="Per-device batch size")
     parser.add_argument("--grad-accum", type=int, default=4, help="Gradient accumulation steps")
     parser.add_argument("--max-length", type=int, default=512, help="Max sequence length")
@@ -70,7 +70,7 @@ def main():
     tokenizer = load_tokenizer()
     print(f"  Vocab: {tokenizer.vocab_size}")
 
-    config = AlanTuringConfig(
+    config = LynxConfig(
         vocab_size=tokenizer.vocab_size,
         pad_token_id=tokenizer.pad_token_id,
         bos_token_id=tokenizer.bos_token_id or 1,
@@ -80,7 +80,7 @@ def main():
     print(f"  Total:  {config.compute_num_params()['total'] / 1e6:.1f}M")
 
     print("Loading model...")
-    model = AlanTuringForCausalLM(config)
+    model = LynxForCausalLM(config)
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  Model parameters: {n_params / 1e6:.1f}M")
 

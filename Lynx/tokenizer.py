@@ -27,10 +27,10 @@ def load_tokenizer() -> AutoTokenizer:
             "{% elif message['role'] == 'user' %}"
             "Пользователь: {{ message['content'] }}\n"
             "{% elif message['role'] == 'assistant' %}"
-            "Алан Тьюринг: {{ message['content'] }}\n"
+            "Lynx: {{ message['content'] }}\n"
             "{% endif %}"
             "{% endfor %}"
-            "Алан Тьюринг:"
+            "Lynx:"
         )
 
     return tokenizer
@@ -40,7 +40,7 @@ def format_instruction(instruction: str, response: str = "") -> str:
     """Форматировать пару instruction → response в строку для обучения."""
     parts = [
         f"Пользователь: {instruction}",
-        f"Алан Тьюринг: {response}",
+        f"Lynx: {response}",
     ]
     return "\n".join(parts)
 

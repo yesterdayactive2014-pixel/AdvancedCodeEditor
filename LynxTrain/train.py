@@ -8,8 +8,8 @@ from torch.utils.data import Dataset, DataLoader
 alan_path = 'dataset.json'
 
 print("➡️ Шаг 1: Скрипт запущен! Пытаюсь загрузить модули...")
-from alan_nn import AlanTransformer, ByteTokenizer
-print("➡️ Шаг 2: Модули alan_nn успешно импортированы!")
+from lynx_nn import LynxTransformer, ByteTokenizer
+print("➡️ Шаг 2: Модули lynx_nn успешно импортированы!")
 
 class CD(Dataset):
     def __init__(self, p, sl=128):
@@ -33,7 +33,7 @@ class CD(Dataset):
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f"➡️ Шаг 6: Устройство определено -> {device.upper()}")
 
-m = AlanTransformer().to(device)
+m = LynxTransformer().to(device)
 o = torch.optim.AdamW(m.parameters(), lr=3e-4)
 ds = CD(alan_path)
 dl = DataLoader(ds, batch_size=8, shuffle=True)
@@ -46,5 +46,5 @@ for ep in range(20):
         l = nn.functional.cross_entropy(m(x).reshape(-1, m(x).size(-1)), y.reshape(-1))
         o.zero_grad(); l.backward(); o.step(); la += l.item()
     print(f'Эпоха {ep+1}/20: loss = {la/len(dl):.4f}')
-    torch.save(m.state_dict(), f'alan_ep{ep+1}.pt')
+    torch.save(m.state_dict(), f'lynx_ep{ep+1}.pt')
 print("✅ ВСЁ ГОТОВО!")
